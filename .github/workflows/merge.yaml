@@ -59,7 +59,7 @@ jobs:
                 libgtest-dev
           - container: fedora:43
             install: |
-              dnf install -y \
+              dnf install --assumeyes \
                 @development-tools \
                 clang clang-tools-extra cmake ninja-build \
                 grpc-devel grpc-plugins \
