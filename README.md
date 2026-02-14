@@ -39,8 +39,14 @@ Setup
    [Profile1]
    Backend = "ParaformerV2"
    Config = {
-       dashscope_api_key = "...", # required
-       language_hints = ["zh"],   # optional
+       dashscope_api_key = "...",                   # required
+       disfluency_removal_enabled = true,           # optional
+       language_hints = ["zh"],                     # optional
+       semantic_punctuation_enabled = false,        # optional
+       max_sentence_silence = 800,                  # optional
+       multi_threshold_mode_enabled = false,        # optional
+       punctuation_prediction_enabled = true,       # optional
+       inverse_text_normalization_enabled = true,   # optional
    }
    
    [Profile2]

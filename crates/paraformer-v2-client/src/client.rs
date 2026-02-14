@@ -44,6 +44,7 @@ enum Stage {
 fn transcribe<W>(
     web_socket_stream: W,
     mut audio_stream: impl Stream<Item = io::Result<Bytes>> + Unpin,
+    config: ParaformerV2Config,
 ) -> impl Stream<Item = Result<TranscribeResponse, ParaformerV2Error>>
 where
     W: Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>
@@ -57,7 +58,7 @@ where
     stream! {
         let mut stage: Stage = Stage::AwaitTaskStarted;
         let task_id = {
-            let run_task_req = types::run_task::request::Request::new();
+            let run_task_req = types::run_task::request::Request::new(&config);
             let text = match serde_json::to_string(&run_task_req) { Ok(t) => t, Err(e) => { yield Err(e.into()); return; } };
             if let Err(_e) = send.send(Message::Text(text.into())).await { yield Err(ParaformerV2Error::Connection); return; }
             run_task_req.header.task_id.clone()
@@ -188,7 +189,7 @@ impl AsrClient for ParaformerV2Client {
             .await
             .map_err(ParaformerV2Error::from)?;
 
-        let transcribe_stream = transcribe(ws_stream, audio_stream);
+        let transcribe_stream = transcribe(ws_stream, audio_stream, config.clone());
 
         Ok(Self {
             inner: TranscribeStream::new(Box::pin(transcribe_stream)),
