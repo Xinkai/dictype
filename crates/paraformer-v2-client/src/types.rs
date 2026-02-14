@@ -14,6 +14,7 @@ pub enum Streaming {
 pub mod run_task {
     pub mod request {
         use super::super::{EmptyObj, Streaming};
+        use crate::config::ParaformerV2Config;
         use uuid::Uuid;
 
         #[derive(Debug, serde::Serialize)]
@@ -29,8 +30,8 @@ pub mod run_task {
             Pcm,
         }
 
-        #[derive(Debug, serde::Serialize)]
-        enum Language {
+        #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+        pub enum Language {
             #[serde(rename = "zh")]
             Mandarin,
             #[serde(rename = "en")]
@@ -64,21 +65,28 @@ pub mod run_task {
             inverse_text_normalization_enabled: Option<bool>,
         }
 
-        impl Default for RequestPayloadParameters {
-            fn default() -> Self {
-                Self {
+        impl RequestPayloadParameters {
+            fn new(config: &ParaformerV2Config) -> Self {
+                let mut parameters = Self {
                     format: Format::Pcm,
                     sample_rate: 16000,
                     vocabulary_id: None,
                     disfluency_removal_enabled: None,
-                    language_hints: Some(vec![Language::Mandarin]),
+                    language_hints: None,
                     semantic_punctuation_enabled: None,
                     max_sentence_silence: None,
                     multi_threshold_mode_enabled: None,
                     punctuation_prediction_enabled: None,
                     heartbeat: None,
                     inverse_text_normalization_enabled: None,
+                };
+                if let Some(language_hints) = &config.language_hints
+                    && !language_hints.is_empty()
+                {
+                    parameters.language_hints = Some(language_hints.clone());
                 }
+
+                parameters
             }
         }
 
@@ -92,21 +100,15 @@ pub mod run_task {
             input: EmptyObj,
         }
 
-        impl Default for RequestPayload {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
         impl RequestPayload {
             #[must_use]
-            pub fn new() -> Self {
+            pub fn new(config: &ParaformerV2Config) -> Self {
                 Self {
                     task_group: "audio",
                     task: "asr",
                     function: "recognition",
                     model: "paraformer-realtime-v2",
-                    parameters: RequestPayloadParameters::default(),
+                    parameters: RequestPayloadParameters::new(config),
                     input: EmptyObj::default(),
                 }
             }
@@ -118,22 +120,16 @@ pub mod run_task {
             payload: RequestPayload,
         }
 
-        impl Default for Request {
-            fn default() -> Self {
-                Self::new()
-            }
-        }
-
         impl Request {
             #[must_use]
-            pub fn new() -> Self {
+            pub fn new(config: ParaformerV2Config) -> Self {
                 Self {
                     header: RequestHeader {
                         action: "run-task",
                         task_id: Uuid::new_v4().into(),
                         streaming: Streaming::Duplex,
                     },
-                    payload: RequestPayload::new(),
+                    payload: RequestPayload::new(&config),
                 }
             }
         }
