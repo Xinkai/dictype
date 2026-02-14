@@ -42,8 +42,8 @@ jobs:
           - container: debian:13
             install: |
               apt-get update
-              apt-get install -y --no-install-recommends \
-                build-essential clang cmake ninja-build \
+              apt-get install --assume-yes --no-install-recommends --no-install-suggests \
+                build-essential clang cmake ninja-build clang-tidy \
                 libgrpc-dev libgrpc++-dev \
                 protobuf-compiler protobuf-compiler-grpc libprotobuf-dev \
                 libfcitx5core-dev \
