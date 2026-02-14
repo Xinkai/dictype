@@ -5,6 +5,8 @@
 #include <string>
 
 #include <fcitx-utils/inputbuffer.h>
+#include <fcitx-utils/trackableobject.h>
+#include <fcitx/inputcontext.h>
 #include <fcitx/inputcontextproperty.h>
 
 enum class DictypeStage {
@@ -23,7 +25,8 @@ class DictypeState final : public fcitx::InputContextProperty {
   public:
     explicit DictypeState();
 
-    void reset();
+    void clear();
+    bool newSession(fcitx::InputContext* inputContext);
 
     void stop();
 
@@ -40,8 +43,12 @@ class DictypeState final : public fcitx::InputContextProperty {
     void setError(const std::string& errorMsg);
     [[nodiscard]] std::string getErrorMsg() const;
 
+    [[nodiscard]] std::optional<fcitx::InputContext*> inputContext() const;
+
   private:
     uint32_t latestCommittableBeginTime_ = 0;
     std::map<uint32_t, std::string> texts_;
     std::string errorMsg_;
+    fcitx::TrackableObjectReference<fcitx::InputContext> inputContext_;
+    bool cleared_ = true;
 };
