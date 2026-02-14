@@ -1,4 +1,3 @@
-#include <ranges>
 #include <sstream>
 
 #include <fcitx-utils/inputbuffer.h>
@@ -46,7 +45,7 @@ void DictypeState::setText(const Dictype::TranscribeResponse& response) {
 
 std::string DictypeState::getUncommittedText() const {
     std::ostringstream oss;
-    for (const auto& [beginTime, value] : texts_ | std::views::all) {
+    for (const auto& [beginTime, value] : texts_) {
         if (beginTime > latestCommittableBeginTime_) {
             oss << value;
         }

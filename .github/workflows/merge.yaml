@@ -30,14 +30,52 @@ jobs:
 
   dictype-fcitx:
     runs-on: ubuntu-latest
-    container: archlinux:base
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - container: archlinux:base
+            install: |
+              pacman -Syu --noconfirm --needed \
+                clang cmake ninja grpc fcitx5 gtest
+          - container: debian:13-slim
+            install: |
+              apt-get update
+              apt-get install --assume-yes --no-install-recommends --no-install-suggests \
+                build-essential clang cmake ninja-build clang-tidy clang-format \
+                libgrpc-dev libgrpc++-dev \
+                protobuf-compiler protobuf-compiler-grpc libprotobuf-dev \
+                libfcitx5core-dev \
+                libgtest-dev
+          - container: ubuntu:25.10
+            install: |
+              apt-get update
+              apt-get install --assume-yes --no-install-recommends --no-install-suggests \
+                build-essential clang cmake ninja-build clang-tidy clang-format \
+                libgrpc-dev libgrpc++-dev \
+                protobuf-compiler protobuf-compiler-grpc libprotobuf-dev \
+                libfcitx5core-dev \
+                libgtest-dev
+          - container: fedora:43
+            install: |
+              dnf install --assumeyes \
+                @development-tools \
+                clang clang-tools-extra cmake ninja-build \
+                grpc-devel grpc-plugins \
+                protobuf-compiler protobuf-devel \
+                fcitx5-devel \
+                gtest-devel
+
+    container: ${{ matrix.container }}
 
     steps:
       - uses: actions/checkout@v6
       - name: Install build dependencies
-        # ubuntu 24.04 has too old dependencies
-        # run: sudo apt-get update && sudo apt-get install --assume-yes --no-install-recommends --no-install-suggests protobuf-compiler cmake clang ninja-build libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev libfcitx5core-dev libgtest-dev
-        run: pacman -Syu --noconfirm clang cmake ninja grpc fcitx5 gtest
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ${{ matrix.install }}
       - name: C++ check
         run: ./infra/ci/check-cpp.sh
       - name: Run ctest

@@ -1,3 +1,6 @@
+#include <iomanip>
+#include <sstream>
+
 #include <fcitx-config/iniparser.h>
 #include <fcitx/addonfactory.h>
 #include <fcitx/addonmanager.h>
@@ -18,13 +21,12 @@
 #include "GrpcClient.h"
 
 static std::string toHex(const std::array<uint8_t, 16>& data) {
-    std::string out;
-    out.reserve(32);
-
+    std::ostringstream oss;
+    oss << std::hex << std::setfill('0');
     for (uint8_t b : data) {
-        out += std::format("{:02x}", b);
+        oss << std::setw(2) << static_cast<int>(b);
     }
-    return out;
+    return oss.str();
 }
 
 DictypeFcitx::DictypeFcitx(fcitx::AddonManager* addonManager)
@@ -169,7 +171,9 @@ void DictypeFcitx::setConfig(const fcitx::RawConfig& raw_config) {
 
 std::string DictypeFcitx::getServerEndpoint_() {
     uid_t uid = getuid();
-    return std::format("unix:///var/run/user/{}/dictyped.socket", uid);
+    std::ostringstream oss;
+    oss << "unix:///var/run/user/" << uid << "/dictyped.socket";
+    return oss.str();
 }
 
 void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
