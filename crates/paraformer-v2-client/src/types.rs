@@ -145,14 +145,14 @@ pub mod run_task {
 
         impl Request {
             #[must_use]
-            pub fn new(config: ParaformerV2Config) -> Self {
+            pub fn new(config: &ParaformerV2Config) -> Self {
                 Self {
                     header: RequestHeader {
                         action: "run-task",
                         task_id: Uuid::new_v4().into(),
                         streaming: Streaming::Duplex,
                     },
-                    payload: RequestPayload::new(&config),
+                    payload: RequestPayload::new(config),
                 }
             }
         }

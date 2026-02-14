@@ -58,7 +58,7 @@ where
     stream! {
         let mut stage: Stage = Stage::AwaitTaskStarted;
         let task_id = {
-            let run_task_req = types::run_task::request::Request::new(config);
+            let run_task_req = types::run_task::request::Request::new(&config);
             let text = match serde_json::to_string(&run_task_req) { Ok(t) => t, Err(e) => { yield Err(e.into()); return; } };
             if let Err(_e) = send.send(Message::Text(text.into())).await { yield Err(ParaformerV2Error::Connection); return; }
             run_task_req.header.task_id.clone()

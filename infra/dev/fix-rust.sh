@@ -2,6 +2,6 @@
 
 set -eu
 
-cargo clippy --all-targets --all-features --fix --allow-dirty
+cargo clippy --workspace --all-targets --all-features --fix --allow-dirty
 
 cargo fmt --all
