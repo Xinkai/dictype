@@ -80,10 +80,33 @@ pub mod run_task {
                     heartbeat: None,
                     inverse_text_normalization_enabled: None,
                 };
+                if let Some(disfluency_removal_enabled) = config.disfluency_removal_enabled {
+                    parameters.disfluency_removal_enabled = Some(disfluency_removal_enabled);
+                }
                 if let Some(language_hints) = &config.language_hints
                     && !language_hints.is_empty()
                 {
                     parameters.language_hints = Some(language_hints.clone());
+                }
+                if let Some(semantic_punctuation_enabled) = config.semantic_punctuation_enabled {
+                    parameters.semantic_punctuation_enabled = Some(semantic_punctuation_enabled);
+                }
+                if let Some(max_sentence_silence) = config.max_sentence_silence {
+                    parameters.max_sentence_silence = Some(max_sentence_silence);
+                }
+                if let Some(multi_threshold_mode_enabled) = config.multi_threshold_mode_enabled {
+                    parameters.multi_threshold_mode_enabled = Some(multi_threshold_mode_enabled);
+                }
+                if let Some(punctuation_prediction_enabled) = config.punctuation_prediction_enabled
+                {
+                    parameters.punctuation_prediction_enabled =
+                        Some(punctuation_prediction_enabled);
+                }
+                if let Some(inverse_text_normalization_enabled) =
+                    config.inverse_text_normalization_enabled
+                {
+                    parameters.inverse_text_normalization_enabled =
+                        Some(inverse_text_normalization_enabled);
                 }
 
                 parameters
