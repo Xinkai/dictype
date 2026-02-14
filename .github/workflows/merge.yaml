@@ -53,6 +53,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euxo pipefail
+          ${{ matrix.install }}
       - name: C++ check
         run: ./infra/ci/check-cpp.sh
       - name: Run ctest
