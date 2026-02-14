@@ -68,6 +68,7 @@ fn socket_path() -> PathBuf {
     let uid = unsafe { libc::geteuid() };
     let mut path = PathBuf::from("/var/run/user");
     path.push(uid.to_string());
+    path.push("dictype");
     path.push("dictyped.socket");
     path
 }

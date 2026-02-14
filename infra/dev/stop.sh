@@ -8,5 +8,5 @@ grpcurl \
     -plaintext \
     -v \
     -proto "${SCRIPT_DIR}/../../proto/dictype.proto" \
-    -unix unix:/var/run/user/1000/dictyped.socket \
+    -unix unix:/var/run/user/1000/dictype/dictyped.socket \
     Dictype.Dictype/Stop
