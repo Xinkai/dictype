@@ -12,7 +12,6 @@ use tracing::debug;
 
 pub struct AudioStream {
     inner: ReaderStream<ChildStdout>,
-    cancellation_token: CancellationToken,
 }
 
 impl AudioStream {
@@ -36,13 +35,11 @@ impl AudioStream {
 
         let stdout = child.stdout.take().expect("no stdout");
 
-        let cancellation_token_clone = cancellation_token.clone();
-
         // Ensure the child process is spawned in the runtime so it can
         // make progress on its own while we await for any output.
         tokio::spawn(async move {
             select! {
-                () = cancellation_token_clone.cancelled() => {
+                () = cancellation_token.cancelled() => {
                     debug!("AudioStream: cancellation requested");
                     child.kill().await.expect("failed to kill child process");
                     debug!("AudioStream: recorder process killed");
@@ -55,14 +52,7 @@ impl AudioStream {
 
         Ok(Self {
             inner: ReaderStream::new(stdout),
-            cancellation_token,
         })
-    }
-}
-
-impl Drop for AudioStream {
-    fn drop(&mut self) {
-        self.cancellation_token.cancel();
     }
 }
 
