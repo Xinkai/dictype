@@ -48,7 +48,7 @@ jobs:
                 protobuf-compiler protobuf-compiler-grpc libprotobuf-dev \
                 libfcitx5core-dev \
                 libgtest-dev
-          - container: ubuntu:25.10-slim
+          - container: ubuntu:25.10
             install: |
               apt-get update
               apt-get install --assume-yes --no-install-recommends --no-install-suggests \
