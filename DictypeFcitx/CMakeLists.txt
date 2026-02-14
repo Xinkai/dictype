@@ -4,7 +4,7 @@ include("${FCITX_INSTALL_CMAKECONFIG_DIR}/Fcitx5Utils/Fcitx5Macros.cmake")
 include("${FCITX_INSTALL_CMAKECONFIG_DIR}/Fcitx5Utils/Fcitx5CompilerSettings.cmake")
 include("${FCITX_INSTALL_CMAKECONFIG_DIR}/Fcitx5Utils/Fcitx5UtilsConfigVersion.cmake")
 
-set(DICTYPE_FCITX_VERSION 0.0.2)
+set(DICTYPE_FCITX_VERSION 0.0.3)
 
 add_library(dictype MODULE
         src/DictypeFcitx.cpp
