@@ -1,0 +1,26 @@
+[package]
+name = "paraformer-v2-client"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+base-client = { path = "../base-client" }
+
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, default-features = false, features = ["macros", "sync", "rt"] }
+tokio-tungstenite = { workspace = true, default-features = false, features = ["native-tls", "connect"] }
+tungstenite = { workspace = true, default-features = false, features = ["url", "native-tls"] }
+uuid = { workspace = true, default-features = false, features = ["serde", "v4", "std"] }
+futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
+async-stream = { workspace = true }
+tokio-util = { workspace = true }
+
+# Logging
+tracing = { workspace = true }

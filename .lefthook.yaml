@@ -1,0 +1,19 @@
+# EXAMPLE USAGE:
+#
+#   Refer for explanation to the following link:
+#   https://lefthook.dev/configuration/
+#
+colors: true
+
+pre-commit:
+   parallel: true
+   jobs:
+     - name: Rust Format
+       glob: "*.rs"
+       run: ./infra/dev/fix-rust.sh
+       stage_fixed: true
+
+     - name: Clang Format
+       glob: "*.{cpp,h}"
+       run: cmake -B cmake-build-ci && cmake --build cmake-build-ci --target format
+       stage_fixed: true

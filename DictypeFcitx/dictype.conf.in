@@ -1,0 +1,12 @@
+[Addon]
+Name=Dictype
+Comment=ASR Support
+Type=@FCITX_ADDON_TYPE@
+Library=libdictype
+Category=Module
+Version=@DICTYPE_FCITX_VERSION@
+OnDemand=False
+Configurable=True
+
+[Addon/Dependencies]
+0=core:@PACKAGE_VERSION@

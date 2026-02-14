@@ -1,0 +1,57 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/*",
+]
+
+[workspace.package]
+version = "0.0.1"
+publish = false
+edition = "2024"
+
+[workspace.dependencies]
+anyhow = { version = "1.0.101" }
+thiserror = { version = "2.0.18" }
+
+serde = { version = "1.0.228" }
+serde_json = { version = "1.0.149" }
+toml = { version = "1.0.1" }
+uuid = { version = "1.20.0", default-features = false }
+base64 = { version = "0.22.1" }
+
+futures-util = { version = "0.3.31", default-features = false }
+tokio = { version = "1.49.0", default-features = false }
+tokio-stream = { version = "0.1.18", default-features = false }
+tokio-util = { version = "0.7.18" }
+async-stream = { version = "0.3.6" }
+
+pin-project-lite = { version = "0.2.16" }
+
+tungstenite = { version = "0.28.0", default-features = false }
+tokio-tungstenite = { version = "0.28.0", default-features = false }
+
+# Logging
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["fmt", "env-filter"] }
+
+prost = { version = "0.14.3" }
+tonic-prost = { version = "0.14.3", default-features = false }
+tonic = { version = "0.14.3", default-features = false }
+tonic-prost-build = { version = "0.14.3" }
+
+[workspace.lints.rust]
+warnings = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+cargo = { level = "deny", priority = -1 }
+
+cargo_common_metadata = "allow"
+multiple_crate_versions = "allow"
+missing_panics_doc = "allow"
+missing_errors_doc = "allow"
+too_many_lines = "allow"
+option_if_let_else = "allow"
+default_trait_access = "allow"

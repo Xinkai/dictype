@@ -1,0 +1,20 @@
+[package]
+name = "base-client"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
+
+# Grpc
+prost = { workspace = true }
+tonic-prost = { workspace = true }
+tonic = { workspace = true, features = ["codegen", "transport", "server", "router"] }
+
+[build-dependencies]
+tonic-prost-build = { workspace = true }

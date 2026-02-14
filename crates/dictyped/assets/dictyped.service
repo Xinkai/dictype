@@ -1,0 +1,17 @@
+[Unit]
+Description=Dictype Daemon
+After=audio.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/dictyped
+Restart=on-failure
+RestartSec=5
+
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=graphical-session.target

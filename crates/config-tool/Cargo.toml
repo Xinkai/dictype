@@ -1,0 +1,16 @@
+[package]
+name = "config-tool"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+paraformer-v2-client = { path = "../paraformer-v2-client" }
+qwen-v3-client = { path = "../qwen-v3-client" }
+
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+toml = { workspace = true }

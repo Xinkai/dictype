@@ -1,0 +1,27 @@
+[package]
+name = "qwen-v3-client"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+base-client = { path = "../base-client" }
+
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, default-features = false, features = ["macros", "sync", "rt"] }
+tokio-tungstenite = { workspace = true, features = ["native-tls", "connect"] }
+tungstenite = { workspace = true, features = ["url", "native-tls"] }
+base64 = { workspace = true }
+futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
+async-stream = { workspace = true }
+tokio-util = { workspace = true }
+tokio-stream = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
