@@ -8,6 +8,9 @@ ExecStart=/usr/bin/dictyped
 Restart=on-failure
 RestartSec=5
 
+RuntimeDirectory=dictype
+RuntimeDirectoryMode=0700
+
 CapabilityBoundingSet=
 AmbientCapabilities=
 ProtectSystem=strict

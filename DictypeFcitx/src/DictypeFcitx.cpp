@@ -172,7 +172,7 @@ void DictypeFcitx::setConfig(const fcitx::RawConfig& raw_config) {
 std::string DictypeFcitx::getServerEndpoint_() {
     uid_t uid = getuid();
     std::ostringstream oss;
-    oss << "unix:///var/run/user/" << uid << "/dictyped.socket";
+    oss << "unix:///var/run/user/" << uid << "/dictype/dictyped.socket";
     return oss.str();
 }
 
