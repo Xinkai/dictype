@@ -186,9 +186,7 @@ where
                                 let req = types::input_audio_buffer::append::request::Request::new(format!("event_{event_count}"), chunk);
                                 event_count += 1;
                                 let body = Message::Text(serde_json::to_string(&req).expect("Json Stringify").into());
-                                // dbg!("pushing audio length: {:?}", &body.len());
                                 if let Err(_e) = send.send(body).await {
-                                    // dbg!("{:?}", &_e);
                                     yield Err(QwenV3Error::Connection);
                                     break;
                                 }
