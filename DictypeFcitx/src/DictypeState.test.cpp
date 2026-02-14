@@ -25,19 +25,27 @@ TEST(DictypeStateTest, DefaultStateIsClosed) {
     EXPECT_FALSE(state.takeCommittableText().has_value());
 }
 
-TEST(DictypeStateTest, ResetClearsStateAndData) {
+TEST(DictypeStateTest, NewSessionClearsStateAndData) {
     DictypeState state;
     state.stage = DictypeStage::Connecting;
     state.setError("oops");
     state.stage = DictypeStage::Transcribing;
     state.setText(MakeResponse(1, "hello ", true));
 
-    state.reset();
+    state.clear();
 
     EXPECT_EQ(state.stage, DictypeStage::Closed);
     EXPECT_EQ(state.getErrorMsg(), "");
     EXPECT_EQ(state.getUncommittedText(), "");
     EXPECT_FALSE(state.takeCommittableText().has_value());
+}
+
+TEST(DictypeStateTest, NewSessionRequiresPreviousClear) {
+    DictypeState state;
+    EXPECT_TRUE(state.newSession(nullptr));
+    EXPECT_FALSE(state.newSession(nullptr));
+    state.clear();
+    EXPECT_TRUE(state.newSession(nullptr));
 }
 
 TEST(DictypeStateTest, StopTransitionsOnlyFromConnectingOrTranscribing) {

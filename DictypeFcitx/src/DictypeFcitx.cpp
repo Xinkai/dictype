@@ -32,11 +32,8 @@ static std::string toHex(const std::array<uint8_t, 16>& data) {
 DictypeFcitx::DictypeFcitx(fcitx::AddonManager* addonManager)
     : eventLoop_(addonManager->eventLoop()),
       dispatcher_(addonManager->instance()->eventDispatcher()),
-      instance_(addonManager->instance()),
-      factory_([](fcitx::InputContext&) { return new DictypeState(); }) {
-    DICTYPE_DEBUG() << "created";
-    instance_->inputContextManager().registerProperty("dictypeState",
-                                                      &factory_);
+      instance_(addonManager->instance()) {
+    DICTYPE_INFO() << "created";
 
     eventHandlers_.emplace_back(instance_->watchEvent(
         fcitx::EventType::InputContextKeyEvent,
@@ -96,14 +93,30 @@ DictypeFcitx::~DictypeFcitx() = default;
 
 fcitx::Instance* DictypeFcitx::instance() const { return instance_; }
 
-auto& DictypeFcitx::factory() { return factory_; }
+void DictypeFcitx::closeUI_() const {
+    const auto inputContextOpt = state_.inputContext();
+    if (!inputContextOpt.has_value()) {
+        DICTYPE_WARN() << "input context is gone.";
+        return;
+    }
+    auto* inputContext = *inputContextOpt;
+    inputContext->inputPanel().reset();
 
-void DictypeFcitx::updateUI_(const DictypeState* state) const {
-    const auto inputContext = instance_->lastFocusedInputContext();
+    inputContext->updateUserInterface(
+        fcitx::UserInterfaceComponent::InputPanel);
+}
+
+void DictypeFcitx::updateUI_() const {
+    const auto inputContextOpt = state_.inputContext();
+    if (!inputContextOpt.has_value()) {
+        DICTYPE_WARN() << "input context is gone.";
+        return;
+    }
+    auto* inputContext = *inputContextOpt;
     inputContext->inputPanel().reset();
     const std::string uuid = toHex(inputContext->uuid());
     DICTYPE_INFO() << "InputContext: " << uuid << " Update UI "
-                   << state->getUncommittedText();
+                   << state_.getUncommittedText();
 
     fcitx::TextFormatFlags format = fcitx::TextFormatFlag::DontCommit;
     const bool clientPreedit =
@@ -112,22 +125,24 @@ void DictypeFcitx::updateUI_(const DictypeState* state) const {
         format = {fcitx::TextFormatFlag::Underline,
                   fcitx::TextFormatFlag::DontCommit};
     }
-    fcitx::Text preedit;
 
-    preedit.append(state->getUncommittedText(), format);
-    preedit.setCursor(static_cast<int>(preedit.textLength()));
-
-    if (clientPreedit) {
-        inputContext->inputPanel().setClientPreedit(preedit);
-    } else {
-        inputContext->inputPanel().setPreedit(preedit);
+    if (const std::string uncommitted = state_.getUncommittedText();
+        !uncommitted.empty()) {
+        fcitx::Text preedit;
+        preedit.append(state_.getUncommittedText(), format);
+        preedit.setCursor(static_cast<int>(preedit.textLength()));
+        if (clientPreedit) {
+            inputContext->inputPanel().setClientPreedit(preedit);
+        } else {
+            inputContext->inputPanel().setPreedit(preedit);
+        }
+        inputContext->updatePreedit();
+        DICTYPE_INFO() << "PreEdit: " << preedit.toString();
     }
-    inputContext->updatePreedit();
-    DICTYPE_INFO() << "PreEdit: " << preedit.toString();
 
     {
         fcitx::Text auxUp;
-        switch (state->stage) {
+        switch (state_.stage) {
         case DictypeStage::Closed: {
             break;
         }
@@ -137,7 +152,7 @@ void DictypeFcitx::updateUI_(const DictypeState* state) const {
         }
         case DictypeStage::Errored: {
             auxUp = fcitx::Text(std::string{"🔴 "} + _("Error: ") +
-                                state->getErrorMsg());
+                                state_.getErrorMsg());
             break;
         }
         case DictypeStage::Transcribing: {
@@ -170,7 +185,7 @@ void DictypeFcitx::setConfig(const fcitx::RawConfig& raw_config) {
 }
 
 std::string DictypeFcitx::getServerEndpoint_() {
-    uid_t uid = getuid();
+    const uid_t uid = getuid();
     std::ostringstream oss;
     oss << "unix:///var/run/user/" << uid << "/dictype/dictyped.socket";
     return oss.str();
@@ -178,23 +193,49 @@ std::string DictypeFcitx::getServerEndpoint_() {
 
 void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
                             const std::string& profileName) const {
-    auto* state = keyEvent.inputContext()->propertyFor(&factory_);
+    auto* inputContext = keyEvent.inputContext();
+
     {
-        DICTYPE_INFO() << "Triggered";
-        state->reset();
+        DICTYPE_INFO() << "Triggered " << profileName;
+        if (!state_.newSession(inputContext)) {
+            DICTYPE_ERROR() << "Previous session is not cleared.";
+            return;
+        }
     }
 
-    const auto syncState = [](const DictypeFcitx* that,
-                              fcitx::InputContext* inputContext) {
-        auto* stateLocal = inputContext->propertyFor(&that->factory_);
-        const auto committable = stateLocal->takeCommittableText();
-        if (committable.has_value()) {
-            const std::string uuid = toHex(inputContext->uuid());
-            DICTYPE_INFO() << uuid << "Committing: " << committable.value();
-            inputContext->commitString(committable.value());
-        }
-        that->updateUI_(stateLocal);
-    };
+    const auto syncState =
+        [](const DictypeFcitx* that) {
+            const auto inputContextOpt = that->state_.inputContext();
+            if (!inputContextOpt.has_value()) {
+                DICTYPE_WARN() << "input context is gone.";
+                if (that->running_.load(std::memory_order_acquire)) {
+                    that->stop_();
+                }
+                return;
+            }
+            const auto lastFocusedInputContext =
+                that->instance()->lastFocusedInputContext();
+            auto* inputContext = *inputContextOpt;
+            if (lastFocusedInputContext != inputContext) {
+                // WORKAROUND: I suspect with some backends, InputContext
+                // commitString() always commits to the currently focused text
+                // widget, not the text widget associated with InputContext.
+                const std::string uuid = toHex(lastFocusedInputContext->uuid());
+                DICTYPE_INFO()
+                    << "last focused input uuid: " << uuid
+                    << ". Different InputContexts detected. Delaying commit...";
+                // TODO: watch for the re-focus, and run syncState() again.
+                return;
+            }
+            if (const auto committable = that->state_.takeCommittableText();
+                committable.has_value()) {
+                const std::string uuid = toHex(inputContext->uuid());
+                DICTYPE_INFO()
+                    << uuid << " committing: " << committable.value();
+                inputContext->commitString(committable.value());
+            }
+            that->updateUI_();
+        };
 
     // Start a non-blocking gRPC streaming call to dictyped.
     try {
@@ -210,23 +251,15 @@ void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
             Dictype::TranscribeResponse responseCopy = resp;
             that->dispatcher_.scheduleWithContext(
                 ref, [ref, syncState, resp = std::move(responseCopy)]() {
-                    const auto that = ref.get();
-                    if (that == nullptr) {
+                    const auto that2 = ref.get();
+                    if (that2 == nullptr) {
                         DICTYPE_WARN() << "instance is gone.";
                         return;
                     }
-                    const auto inputContext =
-                        that->instance_->lastFocusedInputContext();
-                    if (inputContext == nullptr) {
-                        DICTYPE_WARN() << "no focused input context.";
-                        return;
-                    }
-                    auto* stateLocal =
-                        inputContext->propertyFor(&that->factory_);
+
                     // Update state text from response and refresh UI.
-                    DICTYPE_WARN() << "Resp: " << resp.DebugString();
-                    stateLocal->setText(resp);
-                    syncState(that, inputContext);
+                    that2->state_.setText(resp);
+                    syncState(that2);
                 });
         };
 
@@ -239,32 +272,30 @@ void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
                 return;
             }
 
-            const grpc::Status statusCopy = grpc::Status{s};
+            const auto statusCopy = grpc::Status{s};
             that->dispatcher_.scheduleWithContext(
                 ref, [ref, syncState, status = statusCopy]() {
-                    const auto that = ref.get();
-                    if (that == nullptr) {
+                    const auto that2 = ref.get();
+                    if (that2 == nullptr) {
                         DICTYPE_WARN() << "instance is gone.";
                         return;
                     }
-                    const auto inputContext =
-                        that->instance_->lastFocusedInputContext();
-                    if (inputContext == nullptr) {
-                        DICTYPE_WARN() << "no focused input context.";
-                        return;
-                    }
-                    auto* state2 = inputContext->propertyFor(&that->factory_);
 
                     if (!status.ok()) {
-                        state2->setError(status.error_message());
+                        that2->state_.setError(status.error_message());
                         DICTYPE_ERROR() << "stream ended with error: "
                                         << status.error_message();
                     } else {
-                        state2->reset();
                         DICTYPE_INFO() << "stream completed.";
                     }
-                    syncState(that, inputContext);
-                    that->running_.store(false, std::memory_order_release);
+
+                    syncState(that2);
+                    that2->updateUI_();
+
+                    that2->closeUI_();
+                    that2->state_.clear();
+
+                    that2->running_.store(false, std::memory_order_release);
                 });
         };
 
@@ -272,22 +303,24 @@ void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
         (void)new GrpcClient(stub.get(), std::move(onResponse),
                              std::move(onDone), profileName);
         // Mark running only after we've successfully dispatched the stream.
-        if (state->stage == DictypeStage::Closed) {
-            state->stage = DictypeStage::Connecting;
+        if (state_.stage == DictypeStage::Closed) {
+            state_.stage = DictypeStage::Connecting;
             running_.store(true, std::memory_order_release);
             DICTYPE_INFO() << "Started transcribe stream.";
         }
     } catch (...) {
         DICTYPE_ERROR() << "Failed to start transcribe stream.";
-        state->setError("Unexpected error: failed to start stream.");
+        state_.setError("Unexpected error: failed to start stream.");
     }
 
-    updateUI_(state);
+    updateUI_();
 }
 
 void DictypeFcitx::stop_() const {
-    const auto inputContext = this->instance()->lastFocusedInputContext();
-    auto* state = inputContext->propertyFor(&factory_);
+    if (state_.stage == DictypeStage::Stopping) {
+        DICTYPE_INFO() << "Stop RPC skipped: already stopping.";
+        return;
+    }
 
     try {
         auto* ctx = new grpc::ClientContext();
@@ -300,25 +333,19 @@ void DictypeFcitx::stop_() const {
                 const auto that = ref.get();
                 if (that == nullptr) {
                     DICTYPE_WARN() << "instance is gone.";
-                    return;
-                }
-                const auto inputContext =
-                    that->instance_->lastFocusedInputContext();
-                if (inputContext == nullptr) {
-                    DICTYPE_WARN() << "no focused input context.";
-                    return;
-                }
-                auto* state2 = inputContext->propertyFor(&that->factory_);
-                if (!s.ok()) {
-                    DICTYPE_ERROR()
-                        << "Stop RPC failed (async): " << s.error_message();
-                    state2->setError(s.error_message());
                 } else {
-                    DICTYPE_INFO()
-                        << "Stop RPC ok (async), stopped=" << resp->stopped();
-                    state2->stop();
-                    that->running_.store(false, std::memory_order_release);
+                    if (!s.ok()) {
+                        DICTYPE_ERROR()
+                            << "Stop RPC failed (async): " << s.error_message();
+                        that->state_.setError(s.error_message());
+                    } else {
+                        DICTYPE_INFO() << "Stop RPC ok (async), stopped="
+                                       << resp->stopped();
+                        that->state_.stop();
+                    }
+                    that->updateUI_();
                 }
+
                 delete ctx;
                 delete req;
                 delete resp;
@@ -327,7 +354,8 @@ void DictypeFcitx::stop_() const {
         DICTYPE_INFO() << "Stop RPC dispatched asynchronously.";
     } catch (...) {
         DICTYPE_ERROR() << "Failed to dispatch Stop RPC (async).";
-        state->setError("Failed to stop.");
+        state_.setError("Failed to stop.");
+        updateUI_();
     }
 }
 

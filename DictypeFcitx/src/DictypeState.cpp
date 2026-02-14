@@ -10,11 +10,30 @@
 
 DictypeState::DictypeState() = default;
 
-void DictypeState::reset() {
+void DictypeState::clear() {
     latestCommittableBeginTime_ = 0;
-    texts_.clear();
+    if (!texts_.empty()) {
+        DICTYPE_WARN() << "uncommitted texts: " << getUncommittedText();
+        texts_.clear();
+    }
     stage = DictypeStage::Closed;
     errorMsg_.clear();
+    inputContext_.unwatch();
+    cleared_ = true;
+}
+
+bool DictypeState::newSession(fcitx::InputContext* inputContext) {
+    if (!cleared_) {
+        DICTYPE_WARN() << "Previous session is not cleared.";
+        return false;
+    }
+    if (inputContext == nullptr) {
+        inputContext_.unwatch();
+    } else {
+        inputContext_ = inputContext->watch();
+    }
+    cleared_ = false;
+    return true;
 }
 
 void DictypeState::stop() {
@@ -28,8 +47,10 @@ void DictypeState::stop() {
 
 void DictypeState::setText(const Dictype::TranscribeResponse& response) {
     if (!(stage == DictypeStage::Connecting ||
-          stage == DictypeStage::Transcribing)) {
-        DICTYPE_WARN() << "not in connecting or transcribing state.";
+          stage == DictypeStage::Transcribing ||
+          stage == DictypeStage::Stopping)) {
+        DICTYPE_WARN()
+            << "not in connecting or transcribing or stopping state.";
         return;
     }
     if (stage == DictypeStage::Connecting) {
@@ -76,3 +97,10 @@ void DictypeState::setError(const std::string& errorMsg) {
 }
 
 std::string DictypeState::getErrorMsg() const { return errorMsg_; }
+
+std::optional<fcitx::InputContext*> DictypeState::inputContext() const {
+    if (auto* inputContext = inputContext_.get(); inputContext != nullptr) {
+        return inputContext;
+    }
+    return std::nullopt;
+}
