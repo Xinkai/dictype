@@ -30,14 +30,29 @@ jobs:
 
   dictype-fcitx:
     runs-on: ubuntu-latest
-    container: archlinux:base
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - container: archlinux:base
+            install: |
+              pacman -Syu --noconfirm --needed \
+                clang cmake ninja grpc fcitx5 gtest
+          - container: debian:13
+            install: |
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential clang cmake ninja-build \
+                libgrpc-dev libgrpc++-dev \
+                protobuf-compiler protobuf-compiler-grpc libprotobuf-dev \
+                libfcitx5core-dev \
+                libgtest-dev
+
+    container: ${{ matrix.container }}
 
     steps:
       - uses: actions/checkout@v6
-      - name: Install build dependencies
-        # ubuntu 24.04 has too old dependencies
-        # run: sudo apt-get update && sudo apt-get install --assume-yes --no-install-recommends --no-install-suggests protobuf-compiler cmake clang ninja-build libgrpc-dev libgrpc++-dev protobuf-compiler-grpc libprotobuf-dev libfcitx5core-dev libgtest-dev
-        run: pacman -Syu --noconfirm clang cmake ninja grpc fcitx5 gtest
       - name: C++ check
         run: ./infra/ci/check-cpp.sh
       - name: Run ctest
