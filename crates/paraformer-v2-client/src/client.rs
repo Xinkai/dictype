@@ -97,7 +97,6 @@ where
                 server_msg = recv.next() => {
                     match server_msg {
                         Some(Ok(Message::Text(text))) => {
-                           // try parse into server event
                             let server_event = serde_json::from_str::<types::ServerEvent>(&text);
 
                             let server_event = match server_event {
