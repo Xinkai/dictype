@@ -57,21 +57,21 @@ impl Dictype for DictypeService {
         info!("found client_factory: {:?}", &client_factory);
 
         // Expose cancellation so Stop can signal this session.
-        let cancellation = CancellationToken::new();
+        let recording_cancellation = CancellationToken::new();
         {
             let mut state = state
                 .lock()
                 .map_err(|_| Status::internal("state poisoned"))?;
-            state.replace(cancellation.clone())?;
+            state.replace(recording_cancellation.clone())?;
         }
 
         // Channel for streaming gRPC responses.
         let (tx, rx) = mpsc::channel::<Result<TranscribeResponse, Status>>(32);
 
-        let spawn_cancellation_token = cancellation.clone();
+        let recording_cancellation2 = recording_cancellation.clone();
         tokio::spawn(async move {
             trace!("starting recording");
-            let audio_stream = match AudioStream::new(spawn_cancellation_token.clone()) {
+            let audio_stream = match AudioStream::new(recording_cancellation.clone()) {
                 Ok(audio_stream) => audio_stream,
                 Err(e) => {
                     let _ = tx
@@ -94,25 +94,22 @@ impl Dictype for DictypeService {
                 }
             };
             loop {
-                tokio::select! {
-                    () = spawn_cancellation_token.cancelled() => {
-                        info!("session cancellation requested");
+                match client.next().await {
+                    Some(Ok(evt)) => {
+                        if tx.send(Ok(evt)).await.is_err() {
+                            error!("Cannot send response to gRPC client, session stopped.");
+                            break;
+                        }
+                    }
+                    Some(Err(e)) => {
+                        let _ = tx
+                            .send(Err(Status::internal(format!("receive error: {e}"))))
+                            .await;
                         break;
                     }
-                    transcribe_response = client.next() => {
-                        match transcribe_response {
-                            Some(Ok(evt)) => {
-                                if tx.send(Ok(evt)).await.is_err() {
-                                    error!("Cannot send response to gRPC client, session stopped.");
-                                    break;
-                                }
-                            }
-                            Some(Err(e)) => {
-                                let _ = tx.send(Err(Status::internal(format!("receive error: {e}")))).await;
-                                break;
-                            }
-                            None => break,
-                        }
+                    None => {
+                        info!("TranscribeStream closed.");
+                        break;
                     }
                 }
             }
@@ -121,7 +118,7 @@ impl Dictype for DictypeService {
         });
 
         let response_stream = ReceiverStream::new(rx);
-        let stream = SessionStream::new(response_stream, cancellation);
+        let stream = SessionStream::new(response_stream, recording_cancellation2);
         Ok(Response::new(stream))
     }
 
