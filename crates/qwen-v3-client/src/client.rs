@@ -7,7 +7,7 @@ use futures_util::{SinkExt, Stream, StreamExt};
 use tokio::select;
 use tokio_tungstenite::connect_async;
 use tokio_util::bytes::Bytes;
-use tracing::{error, info, trace, warn};
+use tracing::{error, info, trace};
 use tungstenite::Message;
 use tungstenite::client::IntoClientRequest;
 use tungstenite::http::HeaderValue;
@@ -80,6 +80,7 @@ where
                             match server_event {
                                 types::ServerEvent::Error(err) => {
                                     error!("err: {err:?}");
+                                    let _ = send.close().await;
                                 }
                                 types::ServerEvent::SessionCreated(response) => {
                                     trace!("session created: {:?}", &response);
@@ -93,11 +94,11 @@ where
                                     stage = Stage::SessionCreated;
                                 },
                                 types::ServerEvent::SessionUpdated(event) => {
-                                    info!("Session Updated: {:?}", event);
+                                    info!("SessionUpdatedsave: {:?}", event);
                                 },
                                 types::ServerEvent::SessionFinished(response) => {
-                                    trace!("SessionFinished: {response:?}");
-                                    return;
+                                    info!("SessionFinished: {response:?}");
+                                    let _ = send.close().await;
                                 },
                                 types::ServerEvent::ConversationItemCreated(response) => {
                                     trace!("ConversationItemCreated: {:?}", &response.item);
@@ -155,23 +156,25 @@ where
                                 }
                             }
                         },
-                        Some(Err(_e)) => {
+                        None => {
+                            info!("server disconnected.");
+                            return;
+                        }
+                        Some(Err(error)) => {
+                            error!("connection error: {:?}", error);
                             yield Err(QwenV3Error::Connection);
                             break;
-                        },
-                        None => {
-                            warn!("received none");
                         },
                         Some(Ok(Message::Ping(data))) => {
                             let _ = send.send(Message::Pong(data)).await;
                         },
+                        Some(Ok(Message::Pong(_))) => {
+                            // ignore
+                        }
                         Some(Ok(Message::Binary(_))) => {
                             unreachable!("Unexpected binary");
                         }
                         Some(Ok(Message::Frame(_))) => {
-                            unreachable!("Unexpected frame");
-                        }
-                        Some(_unexpected) => {
                             unreachable!("Unexpected frame");
                         }
                     }
@@ -183,9 +186,7 @@ where
                                 let req = types::input_audio_buffer::append::request::Request::new(format!("event_{event_count}"), chunk);
                                 event_count += 1;
                                 let body = Message::Text(serde_json::to_string(&req).expect("Json Stringify").into());
-                                // dbg!("pushing audio length: {:?}", &body.len());
                                 if let Err(_e) = send.send(body).await {
-                                    // dbg!("{:?}", &_e);
                                     yield Err(QwenV3Error::Connection);
                                     break;
                                 }
@@ -195,7 +196,6 @@ where
                                 yield Err(QwenV3Error::Audio(err));
                             }
                         }
-
                     } else {
                         let finish_req = types::session::finish::request::Request::new(event_count);
                         event_count += 1;

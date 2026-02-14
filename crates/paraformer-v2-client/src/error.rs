@@ -24,6 +24,6 @@ pub enum ParaformerV2Error {
     #[error("connection error")]
     Connection,
 
-    #[error("connection closed")]
-    Closed,
+    #[error("connection closed: {0}")]
+    Closed(String),
 }

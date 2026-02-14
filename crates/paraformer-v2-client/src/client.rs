@@ -12,7 +12,7 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
 use tokio_util::bytes::Bytes;
-use tracing::error;
+use tracing::{error, info, trace};
 
 use base_client::asr_client::AsrClient;
 use base_client::grpc_server::TranscribeResponse;
@@ -97,7 +97,6 @@ where
                 server_msg = recv.next() => {
                     match server_msg {
                         Some(Ok(Message::Text(text))) => {
-                           // try parse into server event
                             let server_event = serde_json::from_str::<types::ServerEvent>(&text);
 
                             let server_event = match server_event {
@@ -108,27 +107,24 @@ where
                                 },
                             };
 
-                            if let types::ServerEvent::TaskFailed(_resp) = &server_event {
-                                yield Err(ParaformerV2Error::Connection);
-                                break;
-                            }
-
-                            match stage {
-                                Stage::AwaitTaskStarted => {
-                                    if let types::ServerEvent::TaskStarted(_r) = server_event {
-                                        stage = Stage::AwaitResultGenerated;
-                                    }
-                                }
-                                Stage::AwaitResultGenerated => {
-                                    if let types::ServerEvent::ResultGenerated(r) = server_event {
-                                        yield Ok(r.into());
-                                    }
-                                }
-                                Stage::AwaitTaskFinished => {
-                                    if let types::ServerEvent::TaskFinished(_r) = server_event {
-                                        let _ = send.close().await;
-                                    }
-                                }
+                            match server_event {
+                                types::ServerEvent::TaskFailed(response) => {
+                                    error!("TaskFailed {response:?}");
+                                    yield Err(ParaformerV2Error::Connection);
+                                    let _ = send.close().await;
+                                    break;
+                                } ,
+                                types::ServerEvent::TaskStarted(response) => {
+                                    trace!("TaskStarted {response:?}");
+                                    stage = Stage::AwaitResultGenerated;
+                                },
+                                types::ServerEvent::ResultGenerated(response) => {
+                                    yield Ok(response.into());
+                                },
+                                types::ServerEvent::TaskFinished(response) => {
+                                    info!("TaskFinished {response:?}");
+                                    let _ = send.close().await;
+                                },
                             }
                         }
                         Some(Ok(Message::Ping(data))) => {
@@ -137,8 +133,20 @@ where
                         Some(Ok(Message::Pong(_))) => {
                             // ignore
                         }
-                        Some(Ok(Message::Close(_))) | None => {
-                            break;
+                        Some(Ok(Message::Close(frame))) => {
+                            match frame {
+                                Some(close_frame) => {
+                                    info!("close by server: {:?}", &close_frame);
+                                    yield Err(ParaformerV2Error::Closed(close_frame.reason.as_str().to_string()));
+                                },
+                                None => {
+                                    info!("close by server: {:?}", frame);
+                                }
+                            }
+                        }
+                        None => {
+                            info!("server disconnected.");
+                            return;
                         }
                         Some(Ok(Message::Binary(_))) => {
                             unreachable!("Unexpected binary");
@@ -146,7 +154,8 @@ where
                         Some(Ok(Message::Frame(_))) => {
                             unreachable!("Unexpected frame");
                         }
-                        Some(Err(_e)) => {
+                        Some(Err(error)) => {
+                            error!("connection error: {:?}", error);
                             yield Err(ParaformerV2Error::Connection);
                             break;
                         }
