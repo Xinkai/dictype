@@ -34,6 +34,20 @@ Setup
    # This is the configuration file for Dictype.
    # Put it at `~/.config/dictype.toml`.
    
+   [PulseAudio]
+   # Use the following command to get a list of available `device_name`.
+   # $ pactl --format json list sources \
+   #   | jq '[
+   #     .[]
+   #     | select((.monitor_of_sink == null) and (.name | endswith(".monitor") | not))
+   #     | {
+   #         device_name: .properties["device.name"],
+   #         device_alias: .properties["device.alias"],
+   #         device_description: .properties["device.description"]
+   #       }
+   #   ]'
+   preferred_device = "..." # optional
+   
    # You can have up to 5 profiles at the same time, starting with Profile1.
    # Each profile may have different formats depending on the model (Backend).
    [Profile1]
@@ -76,14 +90,13 @@ Setup
 Requirements
 ------------
 
-1. `pipewire` for audio.
+1. `PulseAudio`, or `PipeWire` with pulseaudio compatibility support.
 2. `fcitx5`.
 3. cloud accounts for respective models (currently supports two models on Alibaba Cloud).
 
 TODOs
 -----
 
-- [ ] customize recording device selection
 - [ ] GUI configuration tool
 - [ ] local inference
 

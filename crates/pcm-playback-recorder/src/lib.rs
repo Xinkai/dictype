@@ -24,7 +24,12 @@ pub struct PcmPlaybackRecorder {
 }
 
 impl AudioStream for PcmPlaybackRecorder {
-    fn new(cancellation_token: CancellationToken) -> io::Result<Self> {
+    type CaptureOption = ();
+
+    fn new(
+        cancellation_token: CancellationToken,
+        _capture_option: Self::CaptureOption,
+    ) -> io::Result<Self> {
         if PCM_TEST_WAV.len() <= WAV_HEADER_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -77,7 +82,7 @@ mod tests {
 
     #[tokio::test]
     async fn emits_pcm_chunks() {
-        let mut recorder = PcmPlaybackRecorder::new(CancellationToken::new()).unwrap();
+        let mut recorder = PcmPlaybackRecorder::new(CancellationToken::new(), ()).unwrap();
         let first = recorder.next().await.unwrap().unwrap();
         assert!(!first.is_empty());
     }
