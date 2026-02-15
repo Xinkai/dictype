@@ -28,10 +28,8 @@ void GrpcClient::OnDone(const grpc::Status& s) {
 
 void GrpcClient::OnReadDone(const bool ok) {
     if (!ok) {
-        DICTYPE_WARN() << "GrpcClient::OnReadDone failed.";
         return;
     }
-    DICTYPE_INFO() << "GrpcClient::OnReadDone";
 
     try {
         onResponse_(response_);
