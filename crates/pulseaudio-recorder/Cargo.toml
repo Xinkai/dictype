@@ -1,0 +1,28 @@
+[package]
+name = "pulseaudio-recorder"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+
+base-client = { path = "../base-client" }
+
+serde = { workspace = true, features = ["derive"] }
+
+pulseaudio = { workspace = true }
+
+futures-util = { workspace = true, default-features = false, features = ["io"] }
+tokio = { workspace = true, features = ["rt", "sync", "macros"] }
+tokio-stream = { workspace = true }
+tokio-util = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+[build-dependencies]
+pulseaudio = { workspace = true }

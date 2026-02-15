@@ -17,7 +17,7 @@ Real-time voice-to-text input on Linux.
     - `crates/paraformer-v2-client/` — Paraformer V2 backend client implementation.
     - `crates/qwen-v3-client/` — Qwen V3 backend client implementation.
     - `crates/pcm-playback-recorder/` — audio recorder implementation based on PCM playback capture (for unit tests).
-    - `crates/pw-record-recorder/` — audio recorder implementation based on PipeWire `pw-record`.
+    - `crates/pulseaudio-recorder/` — audio recorder implementation using PulseAudio socket.
     - `crates/config-tool/` — profile/config persistence helpers used by service/client code.
 
 ## Service Architecture Notes (LLM Context)

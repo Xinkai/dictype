@@ -16,7 +16,10 @@ use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 use tracing::{info, warn};
 
+use base_client::audio_stream::AudioStream;
 use base_client::grpc_server::DictypeServer;
+use config_tool::config_store::ConfigFile;
+use pulseaudio_recorder::PulseAudioRecorder;
 
 use crate::service::DictypeService;
 
@@ -39,7 +42,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("failed to adjust socket permissions: {err}");
     }
 
-    let service = DictypeService::new();
+    let config = ConfigFile::load().unwrap_or_else(|err| {
+        warn!("failed to load config, using defaults: {err}");
+        ConfigFile::default()
+    });
+    let service = DictypeService::new(
+        client_store::ClientStore::load(&config),
+        PulseAudioRecorder::new,
+        config.pulseaudio().clone(),
+    );
     let incoming = UnixListenerStream::new(listener);
 
     info!("listening on {}", socket_path.display());

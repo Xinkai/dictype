@@ -4,11 +4,16 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use pulseaudio_recorder::PulseAudioConfig;
+
 use crate::config_store_error::ConfigStoreError;
 use crate::profile_config::ProfileConfig;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ConfigFile {
+    #[serde(rename = "PulseAudio", default)]
+    pulseaudio: PulseAudioConfig,
+
     #[serde(flatten)]
     profiles: BTreeMap<String, ProfileConfig>,
 }
@@ -27,6 +32,11 @@ impl ConfigFile {
     #[must_use]
     pub const fn profiles(&self) -> &BTreeMap<String, ProfileConfig> {
         &self.profiles
+    }
+
+    #[must_use]
+    pub const fn pulseaudio(&self) -> &PulseAudioConfig {
+        &self.pulseaudio
     }
 }
 

@@ -262,7 +262,7 @@ mod tests {
     #[tokio::test]
     async fn connect() {
         let cancellation = CancellationToken::new();
-        let audio_stream = PcmPlaybackRecorder::new(cancellation.clone()).unwrap();
+        let audio_stream = PcmPlaybackRecorder::new(cancellation.clone(), ()).unwrap();
         tokio::spawn(async move {
             sleep(Duration::from_secs(5)).await;
             cancellation.cancel();

@@ -1,3 +1,4 @@
+use std::io;
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc;
@@ -11,22 +12,30 @@ use base_client::audio_stream::AudioStream;
 use base_client::grpc_server::{
     Dictype, StopRequest, StopResponse, TranscribeRequest, TranscribeResponse,
 };
-use config_tool::config_store::ConfigFile;
-use pw_record_recorder::PwRecordRecorder;
 
 use crate::client_store::ClientStore;
 use crate::service_state::ServiceState;
 use crate::session_stream::SessionStream;
 
-pub struct DictypeService {
+type RecorderFactory<R> = fn(CancellationToken, <R as AudioStream>::CaptureOption) -> io::Result<R>;
+
+pub struct DictypeService<R>
+where
+    R: AudioStream,
+    R::CaptureOption: Clone,
+{
     state: Arc<Mutex<ServiceState>>,
     client_store: ClientStore,
+    recorder: RecorderFactory<R>,
+    recorder_capture_option: R::CaptureOption,
 }
 
-impl DictypeService {}
-
 #[tonic::async_trait]
-impl Dictype for DictypeService {
+impl<R> Dictype for DictypeService<R>
+where
+    R: AudioStream + 'static,
+    R::CaptureOption: Clone + Send + Sync + 'static,
+{
     type TranscribeStream = SessionStream;
 
     async fn transcribe(
@@ -68,19 +77,22 @@ impl Dictype for DictypeService {
 
         // Channel for streaming gRPC responses.
         let (tx, rx) = mpsc::channel::<Result<TranscribeResponse, Status>>(32);
+        let recorder = self.recorder;
+        let recorder_capture_option = self.recorder_capture_option.clone();
 
         let recording_cancellation2 = recording_cancellation.clone();
         tokio::spawn(async move {
             trace!("starting recording");
-            let audio_stream = match PwRecordRecorder::new(recording_cancellation.clone()) {
-                Ok(audio_stream) => audio_stream,
-                Err(e) => {
-                    let _ = tx
-                        .send(Err(Status::internal(format!("failed to record: {e:?}"))))
-                        .await;
-                    return;
-                }
-            };
+            let audio_stream =
+                match recorder(recording_cancellation.clone(), recorder_capture_option) {
+                    Ok(audio_stream) => audio_stream,
+                    Err(e) => {
+                        let _ = tx
+                            .send(Err(Status::internal(format!("failed to record: {e:?}"))))
+                            .await;
+                        return;
+                    }
+                };
             trace!("started recording");
 
             let mut client = match client_factory
@@ -130,16 +142,21 @@ impl Dictype for DictypeService {
     }
 }
 
-impl DictypeService {
-    pub fn new() -> Self {
-        let config = ConfigFile::load().unwrap_or_else(|err| {
-            error!("Failed to load config: {err}");
-            ConfigFile::default()
-        });
-        let client_store = ClientStore::load(&config);
+impl<R> DictypeService<R>
+where
+    R: AudioStream + 'static,
+    R::CaptureOption: Clone + Send + Sync + 'static,
+{
+    pub fn new(
+        client_store: ClientStore,
+        recorder: RecorderFactory<R>,
+        recorder_capture_option: R::CaptureOption,
+    ) -> Self {
         Self {
             state: Arc::new(Mutex::new(ServiceState::new())),
             client_store,
+            recorder,
+            recorder_capture_option,
         }
     }
 }
@@ -147,13 +164,42 @@ impl DictypeService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+
+    use futures_util::Stream;
+    use tokio_util::bytes::Bytes;
     use tonic::Code;
 
-    fn empty_service() -> DictypeService {
-        DictypeService {
-            state: Arc::new(Mutex::new(ServiceState::new())),
-            client_store: ClientStore::load(&ConfigFile::default()),
+    use config_tool::config_store::ConfigFile;
+
+    struct NeverRecorder;
+
+    impl Stream for NeverRecorder {
+        type Item = io::Result<Bytes>;
+
+        fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+            Poll::Ready(None)
         }
+    }
+
+    impl AudioStream for NeverRecorder {
+        type CaptureOption = ();
+
+        fn new(
+            _cancellation_token: CancellationToken,
+            _capture_option: Self::CaptureOption,
+        ) -> io::Result<Self> {
+            Ok(Self)
+        }
+    }
+
+    fn empty_service() -> DictypeService<NeverRecorder> {
+        DictypeService::new(
+            ClientStore::load(&ConfigFile::default()),
+            NeverRecorder::new,
+            (),
+        )
     }
 
     #[tokio::test]

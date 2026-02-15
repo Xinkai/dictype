@@ -12,7 +12,7 @@ base-client = { path = "../base-client" }
 paraformer-v2-client = { path = "../paraformer-v2-client" }
 qwen-v3-client = { path = "../qwen-v3-client" }
 config-tool = { path = "../config-tool" }
-pw-record-recorder = { path = "../pw-record-recorder" }
+pulseaudio-recorder = { path = "../pulseaudio-recorder" }
 
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "io-util"] }
 tokio-stream = { workspace = true, features = [] }
@@ -20,7 +20,7 @@ tokio-util = { workspace = true }
 futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
 pin-project-lite = { workspace = true }
 
-libc = "0.2.181"
+libc = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 
