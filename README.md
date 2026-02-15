@@ -41,7 +41,7 @@ Setup
    #     .[]
    #     | select((.monitor_of_sink == null) and (.name | endswith(".monitor") | not))
    #     | {
-   #         device_name: .name,
+   #         device_name: .properties["device.name"],
    #         device_alias: .properties["device.alias"],
    #         device_description: .properties["device.description"]
    #       }
