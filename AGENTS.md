@@ -16,6 +16,8 @@ Real-time voice-to-text input on Linux.
     - `crates/base-client/` — shared ASR client traits, stream types, gRPC server helpers.
     - `crates/paraformer-v2-client/` — Paraformer V2 backend client implementation.
     - `crates/qwen-v3-client/` — Qwen V3 backend client implementation.
+    - `crates/pcm-playback-recorder/` — audio recorder implementation based on PCM playback capture (for unit tests).
+    - `crates/pw-record-recorder/` — audio recorder implementation based on PipeWire `pw-record`.
     - `crates/config-tool/` — profile/config persistence helpers used by service/client code.
 
 ## Service Architecture Notes (LLM Context)

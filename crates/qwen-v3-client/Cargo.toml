@@ -25,3 +25,6 @@ tokio-stream = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
+
+[dev-dependencies]
+pcm-playback-recorder = { path = "../pcm-playback-recorder" }

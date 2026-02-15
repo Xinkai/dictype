@@ -15,6 +15,7 @@ use tokio_util::bytes::Bytes;
 use tracing::{error, info, trace};
 
 use base_client::asr_client::AsrClient;
+use base_client::audio_stream::AudioStream;
 use base_client::grpc_server::TranscribeResponse;
 use base_client::transcribe_stream::TranscribeStream;
 
@@ -173,7 +174,7 @@ impl AsrClient for ParaformerV2Client {
 
     async fn connect(
         config: &Self::Options,
-        audio_stream: impl Stream<Item = io::Result<Bytes>> + Send + 'static + Unpin,
+        audio_stream: impl AudioStream + 'static,
     ) -> anyhow::Result<Self> {
         let mut request =
             "wss://dashscope.aliyuncs.com/api-ws/v1/inference".into_client_request()?;

@@ -106,6 +106,7 @@ dependencies = [
  "anyhow",
  "futures-util",
  "prost",
+ "tokio-util",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -223,7 +224,7 @@ dependencies = [
  "libc",
  "paraformer-v2-client",
  "pin-project-lite",
- "prost",
+ "pw-record-recorder",
  "qwen-v3-client",
  "thiserror",
  "tokio",
@@ -869,6 +870,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pcm-playback-recorder"
+version = "0.0.3"
+dependencies = [
+ "base-client",
+ "futures-util",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1034,6 +1046,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pw-record-recorder"
+version = "0.0.3"
+dependencies = [
+ "base-client",
+ "futures-util",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1051,6 +1075,7 @@ dependencies = [
  "base-client",
  "base64",
  "futures-util",
+ "pcm-playback-recorder",
  "serde",
  "serde_json",
  "thiserror",
