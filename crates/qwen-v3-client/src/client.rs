@@ -14,6 +14,7 @@ use tungstenite::http::HeaderValue;
 use tungstenite::http::header::AUTHORIZATION;
 
 use base_client::asr_client::AsrClient;
+use base_client::audio_stream::AudioStream;
 use base_client::grpc_server::TranscribeResponse;
 use base_client::transcribe_stream::TranscribeStream;
 
@@ -224,7 +225,7 @@ impl AsrClient for QwenV3Client {
 
     async fn connect(
         config: &Self::Options,
-        audio_stream: impl Stream<Item = io::Result<Bytes>> + Send + 'static + Unpin,
+        audio_stream: impl AudioStream + 'static,
     ) -> anyhow::Result<Self> {
         let mut request =
             "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime"
@@ -248,18 +249,24 @@ impl AsrClient for QwenV3Client {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use crate::types::Language;
-    use futures_util::stream;
+    use pcm_playback_recorder::PcmPlaybackRecorder;
+    use tokio::time::sleep;
     use tokio_stream::StreamExt;
+    use tokio_util::sync::CancellationToken;
 
     #[cfg_attr(not(has_dashscope), ignore = "requires DASHSCOPE_API_KEY env var")]
     #[tokio::test]
     async fn connect() {
-        let sound: &[u8] = include_bytes!("../../../assets/harvard.wav");
-        let chunk_size = 16000;
-        let audio_chunks = sound.chunks(chunk_size).map(|it| Ok(Bytes::from(it)));
-        let audio_stream = stream::iter(audio_chunks);
+        let cancellation = CancellationToken::new();
+        let audio_stream = PcmPlaybackRecorder::new(cancellation.clone()).unwrap();
+        tokio::spawn(async move {
+            sleep(Duration::from_secs(5)).await;
+            cancellation.cancel();
+        });
 
         let mut client = QwenV3Client::connect(
             &QwenV3Config {
@@ -272,7 +279,7 @@ mod tests {
         .await
         .unwrap();
 
-        for event in client.next().await {
+        while let (Some(event)) = client.next().await {
             dbg!(event);
         }
     }

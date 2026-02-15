@@ -1,12 +1,11 @@
-use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use futures_util::Stream;
 use pin_project_lite::pin_project;
-use prost::bytes::Bytes;
 
 use base_client::asr_client_factory::AsrClientFactory;
+use base_client::audio_stream::AudioStream;
 use base_client::grpc_server::TranscribeResponse;
 use paraformer_v2_client::client::ParaformerV2Client;
 use paraformer_v2_client::client_factory::ParaformerV2ClientFactory;
@@ -46,7 +45,7 @@ pub enum ClientFactory {
 impl ClientFactory {
     pub async fn connect(
         &self,
-        audio_stream: impl Stream<Item = io::Result<Bytes>> + Send + 'static + Unpin,
+        audio_stream: impl AudioStream + 'static,
     ) -> Result<AnyClient, anyhow::Error> {
         let client = match self {
             Self::ParaformerV2(paraformer_v2) => AnyClient::ParaformerV2 {

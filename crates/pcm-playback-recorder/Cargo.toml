@@ -1,0 +1,18 @@
+[package]
+name = "pcm-playback-recorder"
+version.workspace = true
+publish.workspace = true
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+base-client = { path = "../base-client" }
+
+futures-util = { workspace = true, default-features = false }
+tokio = { workspace = true, features = ["time"] }
+tokio-util = { workspace = true }
+
+[dev-dependencies]
+tokio-stream = { workspace = true }

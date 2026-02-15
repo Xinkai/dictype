@@ -1,7 +1,4 @@
-use std::io;
-
-use futures_util::Stream;
-use prost::bytes::Bytes;
+use crate::audio_stream::AudioStream;
 
 pub trait AsrClient {
     type Options;
@@ -9,6 +6,6 @@ pub trait AsrClient {
 
     fn connect(
         options: &Self::Options,
-        audio_stream: impl Stream<Item = io::Result<Bytes>> + Send + 'static + Unpin,
+        audio_stream: impl AudioStream + 'static,
     ) -> impl Future<Output = Result<Self::Client, anyhow::Error>>;
 }

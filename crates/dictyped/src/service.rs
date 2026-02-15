@@ -7,12 +7,13 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::{Span, error, info, trace};
 
+use base_client::audio_stream::AudioStream;
 use base_client::grpc_server::{
     Dictype, StopRequest, StopResponse, TranscribeRequest, TranscribeResponse,
 };
 use config_tool::config_store::ConfigFile;
+use pw_record_recorder::PwRecordRecorder;
 
-use crate::audio_stream::AudioStream;
 use crate::client_store::ClientStore;
 use crate::service_state::ServiceState;
 use crate::session_stream::SessionStream;
@@ -71,7 +72,7 @@ impl Dictype for DictypeService {
         let recording_cancellation2 = recording_cancellation.clone();
         tokio::spawn(async move {
             trace!("starting recording");
-            let audio_stream = match AudioStream::new(recording_cancellation.clone()) {
+            let audio_stream = match PwRecordRecorder::new(recording_cancellation.clone()) {
                 Ok(audio_stream) => audio_stream,
                 Err(e) => {
                     let _ = tx

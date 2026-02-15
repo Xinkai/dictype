@@ -2,20 +2,22 @@ use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use futures_util::Stream;
 use tokio::process::ChildStdout;
 use tokio::select;
-use tokio_stream::Stream;
 use tokio_util::bytes::Bytes;
 use tokio_util::io::ReaderStream;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
-pub struct AudioStream {
+use base_client::audio_stream::AudioStream;
+
+pub struct PwRecordRecorder {
     inner: ReaderStream<ChildStdout>,
 }
 
-impl AudioStream {
-    pub fn new(cancellation_token: CancellationToken) -> io::Result<Self> {
+impl AudioStream for PwRecordRecorder {
+    fn new(cancellation_token: CancellationToken) -> io::Result<Self> {
         let mut child = tokio::process::Command::new("/bin/pw-record")
             .arg("--rate")
             .arg("16000")
@@ -40,9 +42,9 @@ impl AudioStream {
         tokio::spawn(async move {
             select! {
                 () = cancellation_token.cancelled() => {
-                    debug!("AudioStream: cancellation requested");
+                    debug!("PwRecordRecorder: cancellation requested");
                     child.kill().await.expect("failed to kill child process");
-                    debug!("AudioStream: recorder process killed");
+                    debug!("PwRecordRecorder: recorder process killed");
                 }
                 status = child.wait() => {
                     panic!("child process exited with status: {}", status.unwrap());
@@ -56,7 +58,7 @@ impl AudioStream {
     }
 }
 
-impl Stream for AudioStream {
+impl Stream for PwRecordRecorder {
     type Item = io::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -76,7 +78,7 @@ mod tests {
     async fn it_works() {
         let cancellation_token = CancellationToken::new();
         {
-            let mut stream = AudioStream::new(cancellation_token).unwrap();
+            let mut stream = PwRecordRecorder::new(cancellation_token).unwrap();
             let mut a = 0;
             while let Some(_value) = stream.next().await {
                 a += 1;

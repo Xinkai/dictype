@@ -12,6 +12,7 @@ base-client = { path = "../base-client" }
 paraformer-v2-client = { path = "../paraformer-v2-client" }
 qwen-v3-client = { path = "../qwen-v3-client" }
 config-tool = { path = "../config-tool" }
+pw-record-recorder = { path = "../pw-record-recorder" }
 
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "io-util"] }
 tokio-stream = { workspace = true, features = [] }
@@ -24,7 +25,6 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 
 # Grpc
-prost = { workspace = true }
 tonic = { workspace = true, features = ["codegen", "transport", "server", "router"] }
 
 # Logging

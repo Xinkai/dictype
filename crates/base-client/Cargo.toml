@@ -9,7 +9,9 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+
 futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
+tokio-util = { workspace = true }
 
 # Grpc
 prost = { workspace = true }

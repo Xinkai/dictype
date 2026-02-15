@@ -1,8 +1,5 @@
-use futures_util::Stream;
-use prost::bytes::Bytes;
-use std::io;
-
 use crate::asr_client::AsrClient;
+use crate::audio_stream::AudioStream;
 
 pub trait AsrClientFactory<Client>
 where
@@ -14,6 +11,6 @@ where
 
     fn create(
         &self,
-        audio_stream: impl Stream<Item = io::Result<Bytes>> + Send + 'static + Unpin,
+        audio_stream: impl AudioStream + 'static,
     ) -> impl Future<Output = Result<Client, anyhow::Error>>;
 }

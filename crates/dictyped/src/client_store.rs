@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use crate::client::ClientFactory;
 use base_client::asr_client_factory::AsrClientFactory;
 use config_tool::config_store::ConfigFile;
 use config_tool::profile_config::ProfileConfig;
 use paraformer_v2_client::client_factory::ParaformerV2ClientFactory;
 use qwen_v3_client::client_factory::QwenV3ClientFactory;
+
+use crate::client::ClientFactory;
 
 pub struct ClientStore {
     clients: Arc<Mutex<BTreeMap<String, Arc<ClientFactory>>>>,

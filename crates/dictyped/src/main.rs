@@ -1,6 +1,5 @@
 #![cfg_attr(test, allow(warnings))]
 
-mod audio_stream;
 mod client;
 mod client_store;
 mod error;
@@ -8,6 +7,8 @@ mod service;
 mod service_state;
 mod session_stream;
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{fs, path::PathBuf};
 
 use tokio::net::UnixListener;
@@ -18,9 +19,6 @@ use tracing::{info, warn};
 use base_client::grpc_server::DictypeServer;
 
 use crate::service::DictypeService;
-
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 #[cfg(unix)]
 #[tokio::main]
