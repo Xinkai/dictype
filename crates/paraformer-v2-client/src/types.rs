@@ -54,14 +54,23 @@ pub mod run_task {
         pub struct RequestPayloadParameters {
             format: Format,
             sample_rate: u32,
+            #[serde(skip_serializing_if = "Option::is_none")]
             vocabulary_id: Option<String>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             disfluency_removal_enabled: Option<bool>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             language_hints: Option<Vec<Language>>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             semantic_punctuation_enabled: Option<bool>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             max_sentence_silence: Option<u32>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             multi_threshold_mode_enabled: Option<bool>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             punctuation_prediction_enabled: Option<bool>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             heartbeat: Option<bool>,
+            #[serde(skip_serializing_if = "Option::is_none")]
             inverse_text_normalization_enabled: Option<bool>,
         }
 
