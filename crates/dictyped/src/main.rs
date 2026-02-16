@@ -8,8 +8,15 @@ mod service_state;
 mod session_stream;
 
 #[cfg(unix)]
+use std::os::fd::AsRawFd;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    fs::{File, OpenOptions},
+    io,
+    path::{Path, PathBuf},
+};
 
 use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
@@ -28,12 +35,14 @@ use crate::service::DictypeService;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_tracing();
 
-    let socket_path = socket_path();
+    let runtime_dir = runtime_dir();
+    fs::create_dir_all(&runtime_dir).expect("Create runtime dir for dictyped");
+    let lock_path = runtime_dir.join("dictyped.lock");
+    let _instance_lock = acquire_lock_file(&lock_path)?;
 
+    let socket_path = runtime_dir.join("dictyped.socket");
     if socket_path.exists() {
         fs::remove_file(&socket_path)?;
-    } else if let Some(parent) = socket_path.parent() {
-        fs::create_dir_all(parent).expect("Create parent dir for socket");
     }
 
     let listener = UnixListener::bind(&socket_path)?;
@@ -73,21 +82,84 @@ fn init_tracing() {
 }
 
 #[cfg(unix)]
-fn socket_path() -> PathBuf {
+fn runtime_dir() -> PathBuf {
     let uid = unsafe { libc::geteuid() };
     let mut path = PathBuf::from("/var/run/user");
     path.push(uid.to_string());
     path.push("dictype");
-    path.push("dictyped.socket");
     path
+}
+
+#[cfg(unix)]
+fn acquire_lock_file(lock_path: &Path) -> io::Result<File> {
+    let lock_file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(lock_path)?;
+
+    let result = unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if result == 0 {
+        return Ok(lock_file);
+    }
+
+    let err = io::Error::last_os_error();
+    let raw_os_error = err.raw_os_error();
+    if raw_os_error == Some(libc::EWOULDBLOCK) || raw_os_error == Some(libc::EAGAIN) {
+        Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!(
+                "dictyped is already running (lock: {})",
+                lock_path.display()
+            ),
+        ))
+    } else {
+        Err(io::Error::new(
+            err.kind(),
+            format!("failed to lock {}: {err}", lock_path.display()),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn socket_path_test() {
-        let _ = socket_path();
+    fn runtime_dir_test() {
+        let runtime_dir = runtime_dir();
+        assert_eq!(
+            runtime_dir.file_name().and_then(|name| name.to_str()),
+            Some("dictype")
+        );
+    }
+
+    #[test]
+    fn acquire_lock_file_rejects_second_holder() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is before unix epoch")
+            .as_nanos();
+        let lock_path = std::env::temp_dir().join(format!(
+            "dictyped-test-lock-{}-{}.lock",
+            std::process::id(),
+            nonce
+        ));
+
+        let first_guard =
+            acquire_lock_file(&lock_path).expect("first lock acquisition should succeed");
+        let second = acquire_lock_file(&lock_path);
+        assert!(second.is_err(), "second lock acquisition should fail");
+        assert_eq!(
+            second.expect_err("second lock should return error").kind(),
+            io::ErrorKind::AlreadyExists
+        );
+
+        drop(first_guard);
+        acquire_lock_file(&lock_path)
+            .expect("lock should be acquirable after first guard is dropped");
+
+        let _ = fs::remove_file(lock_path);
     }
 }
