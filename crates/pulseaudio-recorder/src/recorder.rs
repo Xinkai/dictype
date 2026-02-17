@@ -11,7 +11,7 @@ use tokio_util::bytes::Bytes;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, debug, info_span, trace, warn};
 
-use base_client::audio_stream::AudioStream;
+use base_client::audio_stream::{AudioCapture, AudioStream};
 
 use crate::PulseAudioConfig;
 use crate::error::PulseAudioRecorderError;
@@ -23,13 +23,13 @@ pub struct PulseAudioRecorder {
     inner: UnboundedReceiverStream<io::Result<Bytes>>,
 }
 
-impl AudioStream for PulseAudioRecorder {
+impl AudioCapture for PulseAudioRecorder {
     type CaptureOption = PulseAudioConfig;
 
-    fn new(
+    fn create(
         cancellation_token: CancellationToken,
         capture_option: Self::CaptureOption,
-    ) -> io::Result<Self> {
+    ) -> io::Result<AudioStream> {
         let (tx, rx) = mpsc::unbounded_channel::<io::Result<Bytes>>();
 
         tokio::spawn(
@@ -41,9 +41,9 @@ impl AudioStream for PulseAudioRecorder {
             .instrument(info_span!("PulseAudioRecorder")),
         );
 
-        Ok(Self {
+        Ok(AudioStream(Box::pin(Self {
             inner: UnboundedReceiverStream::new(rx),
-        })
+        })))
     }
 }
 
@@ -144,7 +144,7 @@ mod tests {
     use tokio_stream::StreamExt;
     use tokio_util::sync::CancellationToken;
 
-    use base_client::audio_stream::AudioStream;
+    use base_client::audio_stream::AudioCapture;
 
     use crate::{PulseAudioConfig, PulseAudioRecorder};
 
@@ -152,7 +152,8 @@ mod tests {
     #[cfg_attr(not(has_pulseaudio), ignore = "PulseAudio is likely not available.")]
     async fn emits_pcm_chunks() {
         let mut recorder =
-            PulseAudioRecorder::new(CancellationToken::new(), PulseAudioConfig::default()).unwrap();
+            PulseAudioRecorder::create(CancellationToken::new(), PulseAudioConfig::default())
+                .unwrap();
         match recorder.next().await {
             Some(Ok(_)) => {}
             _ => panic!("expected audio chunk"),

@@ -1,6 +1,4 @@
 use std::io;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 use async_stream::stream;
 use futures_util::Stream;
@@ -23,16 +21,10 @@ use crate::config::ParaformerV2Config;
 use crate::error::ParaformerV2Error;
 use crate::types;
 
+/// Read more: <https://help.aliyun.com/zh/model-studio/websocket-for-paraformer-real-time-service>
+#[derive(Debug)]
 pub struct ParaformerV2Client {
-    inner: TranscribeStream<ParaformerV2Error>,
-}
-
-impl Stream for ParaformerV2Client {
-    type Item = Result<TranscribeResponse, ParaformerV2Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.inner).poll_next(cx)
-    }
+    config: ParaformerV2Config,
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -169,31 +161,39 @@ where
 }
 
 impl AsrClient for ParaformerV2Client {
-    type Options = ParaformerV2Config;
-    type Client = Self;
+    type Config = ParaformerV2Config;
+    type TranscriptionStream = TranscribeStream<anyhow::Error>;
 
-    async fn connect(
-        config: &Self::Options,
-        audio_stream: impl AudioStream + 'static,
-    ) -> anyhow::Result<Self> {
-        let mut request =
-            "wss://dashscope.aliyuncs.com/api-ws/v1/inference".into_client_request()?;
-        let headers = request.headers_mut();
+    fn new(config: impl Into<Self::Config>) -> Self {
+        Self {
+            config: config.into(),
+        }
+    }
 
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", config.dashscope_api_key))
-                .map_err(|_| ParaformerV2Error::InvalidHeaderValue("Authorization"))?,
-        );
+    fn create(
+        &self,
+        audio_stream: AudioStream,
+    ) -> impl Future<Output = Result<Self::TranscriptionStream, anyhow::Error>> {
+        let config = self.config.clone();
+        async move {
+            let mut request =
+                "wss://dashscope.aliyuncs.com/api-ws/v1/inference".into_client_request()?;
+            let headers = request.headers_mut();
 
-        let (ws_stream, _resp) = connect_async(request)
-            .await
-            .map_err(ParaformerV2Error::from)?;
+            headers.insert(
+                AUTHORIZATION,
+                HeaderValue::from_str(&format!("Bearer {}", config.dashscope_api_key))
+                    .map_err(|_| ParaformerV2Error::InvalidHeaderValue("Authorization"))?,
+            );
 
-        let transcribe_stream = transcribe(ws_stream, audio_stream, config.clone());
+            let (ws_stream, _resp) = connect_async(request)
+                .await
+                .map_err(ParaformerV2Error::from)?;
 
-        Ok(Self {
-            inner: TranscribeStream::new(Box::pin(transcribe_stream)),
-        })
+            let transcribe_stream = transcribe(ws_stream, audio_stream, config)
+                .map(|item| item.map_err(anyhow::Error::from));
+
+            Ok(TranscribeStream::new(Box::pin(transcribe_stream)))
+        }
     }
 }

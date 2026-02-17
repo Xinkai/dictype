@@ -1,6 +1,4 @@
 use std::io;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 
 use async_stream::stream;
 use futures_util::{SinkExt, Stream, StreamExt};
@@ -23,17 +21,10 @@ use crate::config::QwenV3Config;
 use crate::error::QwenV3Error;
 use crate::types;
 
-#[allow(dead_code)]
+/// Read more: <https://help.aliyun.com/zh/model-studio/qwen-real-time-speech-recognition>
+#[derive(Debug)]
 pub struct QwenV3Client {
-    inner: TranscribeStream<QwenV3Error>,
-}
-
-impl Stream for QwenV3Client {
-    type Item = Result<TranscribeResponse, QwenV3Error>;
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        Pin::new(&mut self.inner).poll_next(cx)
-    }
+    config: QwenV3Config,
 }
 
 #[derive(Debug, PartialEq)]
@@ -220,36 +211,47 @@ where
 }
 
 impl AsrClient for QwenV3Client {
-    type Options = QwenV3Config;
-    type Client = Self;
+    type Config = QwenV3Config;
+    type TranscriptionStream = TranscribeStream<anyhow::Error>;
 
-    async fn connect(
-        config: &Self::Options,
-        audio_stream: impl AudioStream + 'static,
-    ) -> anyhow::Result<Self> {
-        let mut request =
-            "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime"
-                .into_client_request()?;
-        let headers = request.headers_mut();
+    fn new(config: impl Into<Self::Config>) -> Self {
+        Self {
+            config: config.into(),
+        }
+    }
 
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("Bearer {}", config.dashscope_api_key))
-                .map_err(|_| anyhow::anyhow!("invalid header value for `Authorization`"))?,
-        );
+    fn create(
+        &self,
+        audio_stream: AudioStream,
+    ) -> impl Future<Output = Result<Self::TranscriptionStream, anyhow::Error>> {
+        let config = self.config.clone();
+        async move {
+            let mut request =
+                "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime"
+                    .into_client_request()?;
+            let headers = request.headers_mut();
 
-        let (ws_stream, _resp) = connect_async(request).await?;
+            headers.insert(
+                AUTHORIZATION,
+                HeaderValue::from_str(&format!("Bearer {}", config.dashscope_api_key))
+                    .map_err(|_| anyhow::anyhow!("invalid header value for `Authorization`"))?,
+            );
 
-        let transcribe_stream = transcribe(ws_stream, audio_stream, config.clone());
-        Ok(Self {
-            inner: TranscribeStream::new(Box::pin(transcribe_stream)),
-        })
+            let (ws_stream, _resp) = connect_async(request).await?;
+            let transcribe_stream = transcribe(ws_stream, audio_stream, config)
+                .map(|item| item.map_err(anyhow::Error::from));
+
+            Ok(TranscribeStream::new(Box::pin(transcribe_stream)))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+
+    use base_client::asr_client::AsrClient;
+    use base_client::audio_stream::AudioCapture;
 
     use super::*;
     use crate::types::Language;
@@ -262,22 +264,20 @@ mod tests {
     #[tokio::test]
     async fn connect() {
         let cancellation = CancellationToken::new();
-        let audio_stream = PcmPlaybackRecorder::new(cancellation.clone(), ()).unwrap();
+        let audio_stream = PcmPlaybackRecorder::create(cancellation.clone(), ()).unwrap();
         tokio::spawn(async move {
             sleep(Duration::from_secs(5)).await;
             cancellation.cancel();
         });
 
-        let mut client = QwenV3Client::connect(
-            &QwenV3Config {
-                dashscope_api_key: std::env::var("DASHSCOPE_API_KEY").unwrap(),
-                language: Some(Language::English),
-                turn_detection: None,
-            },
-            audio_stream,
-        )
-        .await
-        .unwrap();
+        let config = QwenV3Config {
+            dashscope_api_key: std::env::var("DASHSCOPE_API_KEY").unwrap(),
+            language: Some(Language::English),
+            turn_detection: None,
+        };
+        let backend = QwenV3Client::new(config);
+
+        let mut client = backend.create(audio_stream).await.unwrap();
 
         while let (Some(event)) = client.next().await {
             dbg!(event);

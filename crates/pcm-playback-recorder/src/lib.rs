@@ -8,7 +8,7 @@ use tokio::time::{self, Interval};
 use tokio_util::bytes::Bytes;
 use tokio_util::sync::CancellationToken;
 
-use base_client::audio_stream::AudioStream;
+use base_client::audio_stream::{AudioCapture, AudioStream};
 
 const PCM_TEST_WAV: &[u8] = include_bytes!("../../../assets/harvard.16k.mono.wav");
 const WAV_HEADER_SIZE: usize = 44;
@@ -23,13 +23,13 @@ pub struct PcmPlaybackRecorder {
     cancellation_token: CancellationToken,
 }
 
-impl AudioStream for PcmPlaybackRecorder {
+impl AudioCapture for PcmPlaybackRecorder {
     type CaptureOption = ();
 
-    fn new(
+    fn create(
         cancellation_token: CancellationToken,
         _capture_option: Self::CaptureOption,
-    ) -> io::Result<Self> {
+    ) -> io::Result<AudioStream> {
         if PCM_TEST_WAV.len() <= WAV_HEADER_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -38,13 +38,13 @@ impl AudioStream for PcmPlaybackRecorder {
         }
         let chunk_size = (BYTES_PER_SECOND_16K_MONO_PCM16 * CHUNK_MILLIS) / 1000;
 
-        Ok(Self {
+        Ok(AudioStream(Box::pin(Self {
             pcm: &PCM_TEST_WAV[WAV_HEADER_SIZE..],
             offset: 0,
             chunk_size: chunk_size.max(1),
             interval: time::interval(Duration::from_millis(CHUNK_MILLIS as u64)),
             cancellation_token,
-        })
+        })))
     }
 }
 
@@ -78,11 +78,12 @@ impl Stream for PcmPlaybackRecorder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base_client::audio_stream::AudioCapture;
     use tokio_stream::StreamExt;
 
     #[tokio::test]
     async fn emits_pcm_chunks() {
-        let mut recorder = PcmPlaybackRecorder::new(CancellationToken::new(), ()).unwrap();
+        let mut recorder = PcmPlaybackRecorder::create(CancellationToken::new(), ()).unwrap();
         let first = recorder.next().await.unwrap().unwrap();
         assert!(!first.is_empty());
     }

@@ -1,11 +1,13 @@
 use crate::audio_stream::AudioStream;
 
 pub trait AsrClient {
-    type Options;
-    type Client;
+    type Config;
+    type TranscriptionStream;
 
-    fn connect(
-        options: &Self::Options,
-        audio_stream: impl AudioStream + 'static,
-    ) -> impl Future<Output = Result<Self::Client, anyhow::Error>>;
+    fn new(config: impl Into<Self::Config>) -> Self;
+
+    fn create(
+        &self,
+        audio_stream: AudioStream,
+    ) -> impl Future<Output = Result<Self::TranscriptionStream, anyhow::Error>>;
 }

@@ -8,7 +8,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::{Span, error, info, trace};
 
-use base_client::audio_stream::AudioStream;
+use base_client::audio_stream::{AudioCapture, AudioStream};
 use base_client::grpc_server::{
     Dictype, StopRequest, StopResponse, TranscribeRequest, TranscribeResponse,
 };
@@ -17,11 +17,12 @@ use crate::client_store::ClientStore;
 use crate::service_state::ServiceState;
 use crate::session_stream::SessionStream;
 
-type RecorderFactory<R> = fn(CancellationToken, <R as AudioStream>::CaptureOption) -> io::Result<R>;
+type RecorderFactory<R> =
+    fn(CancellationToken, <R as AudioCapture>::CaptureOption) -> io::Result<AudioStream>;
 
 pub struct DictypeService<R>
 where
-    R: AudioStream,
+    R: AudioCapture,
     R::CaptureOption: Clone,
 {
     state: Arc<Mutex<ServiceState>>,
@@ -33,7 +34,7 @@ where
 #[tonic::async_trait]
 impl<R> Dictype for DictypeService<R>
 where
-    R: AudioStream + 'static,
+    R: AudioCapture + 'static,
     R::CaptureOption: Clone + Send + Sync + 'static,
 {
     type TranscribeStream = SessionStream;
@@ -58,13 +59,13 @@ where
             }
         }
 
-        let client_factory = self
+        let asr_client = self
             .client_store
-            .get_client_for_profile(&req.profile_name)
+            .get_asr_client_for_profile(&req.profile_name)
             .ok_or_else(|| {
                 Status::invalid_argument(format!("profile not found: {:?}", &req.profile_name))
             })?;
-        info!("found client_factory: {:?}", &client_factory);
+        info!("found asr client: {:?}", &asr_client);
 
         // Expose cancellation so Stop can signal this session.
         let recording_cancellation = CancellationToken::new();
@@ -95,8 +96,8 @@ where
                 };
             trace!("started recording");
 
-            let mut client = match client_factory
-                .connect(audio_stream)
+            let mut client = match asr_client
+                .create_transcription_stream(audio_stream)
                 .await
                 .map_err(|e| Status::internal(format!("backend client connect failed: {e}")))
             {
@@ -144,7 +145,7 @@ where
 
 impl<R> DictypeService<R>
 where
-    R: AudioStream + 'static,
+    R: AudioCapture + 'static,
     R::CaptureOption: Clone + Send + Sync + 'static,
 {
     pub fn new(
@@ -164,40 +165,27 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::pin::Pin;
-    use std::task::{Context, Poll};
-
-    use futures_util::Stream;
-    use tokio_util::bytes::Bytes;
     use tonic::Code;
 
     use config_tool::config_store::ConfigFile;
 
     struct NeverRecorder;
 
-    impl Stream for NeverRecorder {
-        type Item = io::Result<Bytes>;
-
-        fn poll_next(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-            Poll::Ready(None)
-        }
-    }
-
-    impl AudioStream for NeverRecorder {
+    impl AudioCapture for NeverRecorder {
         type CaptureOption = ();
 
-        fn new(
+        fn create(
             _cancellation_token: CancellationToken,
             _capture_option: Self::CaptureOption,
-        ) -> io::Result<Self> {
-            Ok(Self)
+        ) -> io::Result<AudioStream> {
+            Ok(AudioStream(Box::pin(futures_util::stream::empty())))
         }
     }
 
     fn empty_service() -> DictypeService<NeverRecorder> {
         DictypeService::new(
             ClientStore::load(&ConfigFile::default()),
-            NeverRecorder::new,
+            NeverRecorder::create,
             (),
         )
     }
