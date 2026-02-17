@@ -23,7 +23,7 @@ use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
 use tracing::{info, warn};
 
-use base_client::audio_stream::AudioStream;
+use base_client::audio_stream::AudioCapture;
 use base_client::grpc_server::DictypeServer;
 use config_tool::config_store::ConfigFile;
 use pulseaudio_recorder::PulseAudioRecorder;
@@ -55,9 +55,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("failed to load config, using defaults: {err}");
         ConfigFile::default()
     });
-    let service = DictypeService::new(
+    let service = DictypeService::<PulseAudioRecorder>::new(
         client_store::ClientStore::load(&config),
-        PulseAudioRecorder::new,
+        PulseAudioRecorder::create,
         config.pulseaudio().clone(),
     );
     let incoming = UnixListenerStream::new(listener);

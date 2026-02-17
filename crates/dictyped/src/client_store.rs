@@ -1,16 +1,16 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use base_client::asr_client_factory::AsrClientFactory;
+use base_client::asr_client::AsrClient;
 use config_tool::config_store::ConfigFile;
 use config_tool::profile_config::ProfileConfig;
-use paraformer_v2_client::client_factory::ParaformerV2ClientFactory;
-use qwen_v3_client::client_factory::QwenV3ClientFactory;
+use paraformer_v2_client::client::ParaformerV2Client;
+use qwen_v3_client::client::QwenV3Client;
 
-use crate::client::ClientFactory;
+use crate::client::AsrClientInstance;
 
 pub struct ClientStore {
-    clients: Arc<Mutex<BTreeMap<String, Arc<ClientFactory>>>>,
+    clients: Arc<Mutex<BTreeMap<String, Arc<AsrClientInstance>>>>,
 }
 
 impl ClientStore {
@@ -21,7 +21,7 @@ impl ClientStore {
                 ProfileConfig::ParaformerV2(paraformer_v2) => {
                     clients.insert(
                         profile_name.clone(),
-                        Arc::new(ClientFactory::ParaformerV2(ParaformerV2ClientFactory::new(
+                        Arc::new(AsrClientInstance::ParaformerV2(ParaformerV2Client::new(
                             paraformer_v2.clone(),
                         ))),
                     );
@@ -29,7 +29,7 @@ impl ClientStore {
                 ProfileConfig::QwenV3(qwen_v3) => {
                     clients.insert(
                         profile_name.clone(),
-                        Arc::new(ClientFactory::QwenV3(QwenV3ClientFactory::new(
+                        Arc::new(AsrClientInstance::QwenV3(QwenV3Client::new(
                             qwen_v3.clone(),
                         ))),
                     );
@@ -42,8 +42,8 @@ impl ClientStore {
         }
     }
 
-    pub fn get_client_for_profile(&self, profile_name: &str) -> Option<Arc<ClientFactory>> {
-        let locked = self.clients.lock().expect("locking clients");
+    pub fn get_asr_client_for_profile(&self, profile_name: &str) -> Option<Arc<AsrClientInstance>> {
+        let locked = self.clients.lock().expect("locking asr clients");
 
         locked.get(profile_name).cloned()
     }
