@@ -4,15 +4,20 @@ project(dictype)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
-set(CMAKE_CXX_COMPILER /usr/bin/clang++)
 
-set(CMAKE_CXX_CLANG_TIDY
-        clang-tidy;
-        --config-file=${CMAKE_SOURCE_DIR}/.clang-tidy;
-        -warnings-as-errors=*;
-)
+option(ENABLE_CLANG_FORMAT "Configure clang-format targets" ON)
+option(ENABLE_CLANG_TIDY "Run clang-tidy during build" ON)
 
-find_program(CLANG_FORMAT_EXE NAMES clang-format)
+# ---------- clang-tidy ----------
+if(ENABLE_CLANG_TIDY AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    find_program(CLANG_TIDY_EXE NAMES clang-tidy REQUIRED)
+
+    set(CMAKE_CXX_CLANG_TIDY
+        "${CLANG_TIDY_EXE}"
+        --config-file=${CMAKE_SOURCE_DIR}/.clang-tidy
+        -warnings-as-errors=*
+    )
+endif()
 
 # ---------- testing ----------
 if (BUILD_TESTING)
@@ -69,7 +74,9 @@ target_include_directories(dictype_grpc_client PUBLIC "${GENERATED_DIR}")
 target_link_libraries(dictype_grpc_client PUBLIC gRPC::grpc++ protobuf::libprotobuf)
 
 # ---------- format check ----------
-if (CLANG_FORMAT_EXE)
+if (ENABLE_CLANG_FORMAT)
+    find_program(CLANG_FORMAT_EXE NAMES clang-format REQUIRED)
+
     file(GLOB_RECURSE ALL_CXX
             CONFIGURE_DEPENDS
             "${CMAKE_SOURCE_DIR}/DictypeFcitx/*.[ch]pp"
