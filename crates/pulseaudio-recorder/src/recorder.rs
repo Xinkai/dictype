@@ -32,7 +32,8 @@ impl AudioCapture for PulseAudioRecorder {
     type CaptureOption = PulseAudioConfig;
 
     fn new(capture_option: Self::CaptureOption) -> io::Result<Self> {
-        let client = Client::from_env(c"dictype").map_err(|err| io::Error::other(err.to_string()))?;
+        let client =
+            Client::from_env(c"dictype").map_err(|err| io::Error::other(err.to_string()))?;
 
         Ok(Self {
             client,
