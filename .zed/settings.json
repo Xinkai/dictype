@@ -1,28 +1,29 @@
 {
     "project_name": "dictype",
-    "auto_install_extensions": {
-        "neocmake": true,
-        "clangd": true
-    },
     "lsp": {
         "clangd": {
             "binary": {
                 "ignore_system_version": false,
                 "arguments": [
                     "-background-index",
-                    "-compile-commands-dir=cmake-build-debug"
-                ]
-            }
-        }
+                    "-compile-commands-dir=cmake-build-debug-llvm",
+                ],
+            },
+        },
+        "rust-analyzer": {
+            "binary": {
+                "ignore_system_version": false,
+            },
+        },
     },
     "languages": {
         "C++": {
             "format_on_save": "on",
-            "tab_size": 4
+            "tab_size": 4,
         },
         "Rust": {
             "format_on_save": "on",
-            "tab_size": 4
-        }
-    }
+            "tab_size": 4,
+        },
+    },
 }
