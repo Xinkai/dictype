@@ -1,4 +1,3 @@
-use std::io;
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::mpsc;
@@ -8,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::{Span, error, info, trace};
 
-use base_client::audio_stream::{AudioCapture, AudioStream};
+use base_client::audio_stream::AudioCapture;
 use base_client::grpc_server::{
     Dictype, StopRequest, StopResponse, TranscribeRequest, TranscribeResponse,
 };
@@ -17,25 +16,19 @@ use crate::client_store::ClientStore;
 use crate::service_state::ServiceState;
 use crate::session_stream::SessionStream;
 
-type RecorderFactory<R> =
-    fn(CancellationToken, <R as AudioCapture>::CaptureOption) -> io::Result<AudioStream>;
-
 pub struct DictypeService<R>
 where
     R: AudioCapture,
-    R::CaptureOption: Clone,
 {
     state: Arc<Mutex<ServiceState>>,
     client_store: ClientStore,
-    recorder: RecorderFactory<R>,
-    recorder_capture_option: R::CaptureOption,
+    recorder: Arc<R>,
 }
 
 #[tonic::async_trait]
 impl<R> Dictype for DictypeService<R>
 where
-    R: AudioCapture + 'static,
-    R::CaptureOption: Clone + Send + Sync + 'static,
+    R: AudioCapture + Send + Sync + 'static,
 {
     type TranscribeStream = SessionStream;
 
@@ -78,22 +71,20 @@ where
 
         // Channel for streaming gRPC responses.
         let (tx, rx) = mpsc::channel::<Result<TranscribeResponse, Status>>(32);
-        let recorder = self.recorder;
-        let recorder_capture_option = self.recorder_capture_option.clone();
+        let recorder = Arc::clone(&self.recorder);
 
         let recording_cancellation2 = recording_cancellation.clone();
         tokio::spawn(async move {
             trace!("starting recording");
-            let audio_stream =
-                match recorder(recording_cancellation.clone(), recorder_capture_option) {
-                    Ok(audio_stream) => audio_stream,
-                    Err(e) => {
-                        let _ = tx
-                            .send(Err(Status::internal(format!("failed to record: {e:?}"))))
-                            .await;
-                        return;
-                    }
-                };
+            let audio_stream = match recorder.create(recording_cancellation.clone()) {
+                Ok(audio_stream) => audio_stream,
+                Err(e) => {
+                    let _ = tx
+                        .send(Err(Status::internal(format!("failed to record: {e:?}"))))
+                        .await;
+                    return;
+                }
+            };
             trace!("started recording");
 
             let mut client = match asr_client
@@ -145,28 +136,25 @@ where
 
 impl<R> DictypeService<R>
 where
-    R: AudioCapture + 'static,
-    R::CaptureOption: Clone + Send + Sync + 'static,
+    R: AudioCapture + Send + Sync + 'static,
 {
-    pub fn new(
-        client_store: ClientStore,
-        recorder: RecorderFactory<R>,
-        recorder_capture_option: R::CaptureOption,
-    ) -> Self {
+    pub fn new(client_store: ClientStore, recorder: R) -> Self {
         Self {
             state: Arc::new(Mutex::new(ServiceState::new())),
             client_store,
-            recorder,
-            recorder_capture_option,
+            recorder: Arc::new(recorder),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io;
+
     use super::*;
     use tonic::Code;
 
+    use base_client::audio_stream::AudioStream;
     use config_tool::config_store::ConfigFile;
 
     struct NeverRecorder;
@@ -174,10 +162,11 @@ mod tests {
     impl AudioCapture for NeverRecorder {
         type CaptureOption = ();
 
-        fn create(
-            _cancellation_token: CancellationToken,
-            _capture_option: Self::CaptureOption,
-        ) -> io::Result<AudioStream> {
+        fn new(_capture_option: Self::CaptureOption) -> io::Result<Self> {
+            Ok(Self)
+        }
+
+        fn create(&self, _cancellation_token: CancellationToken) -> io::Result<AudioStream> {
             Ok(AudioStream(Box::pin(futures_util::stream::empty())))
         }
     }
@@ -185,8 +174,7 @@ mod tests {
     fn empty_service() -> DictypeService<NeverRecorder> {
         DictypeService::new(
             ClientStore::load(&ConfigFile::default()),
-            NeverRecorder::create,
-            (),
+            NeverRecorder::new(()).expect("NeverRecorder must initialize"),
         )
     }
 

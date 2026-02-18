@@ -19,8 +19,9 @@ impl Stream for AudioStream {
 pub trait AudioCapture {
     type CaptureOption;
 
-    fn create(
-        cancellation_token: CancellationToken,
-        capture_option: Self::CaptureOption,
-    ) -> io::Result<AudioStream>;
+    fn new(capture_option: Self::CaptureOption) -> io::Result<Self>
+    where
+        Self: Sized;
+
+    fn create(&self, cancellation_token: CancellationToken) -> io::Result<AudioStream>;
 }

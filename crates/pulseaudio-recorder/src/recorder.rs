@@ -20,34 +20,49 @@ const SAMPLE_RATE: u32 = 16_000;
 const CHANNELS: u8 = 1;
 
 pub struct PulseAudioRecorder {
+    client: Client,
+    capture_option: PulseAudioConfig,
+}
+
+struct PulseAudioRecorderStream {
     inner: UnboundedReceiverStream<io::Result<Bytes>>,
 }
 
 impl AudioCapture for PulseAudioRecorder {
     type CaptureOption = PulseAudioConfig;
 
-    fn create(
-        cancellation_token: CancellationToken,
-        capture_option: Self::CaptureOption,
-    ) -> io::Result<AudioStream> {
+    fn new(capture_option: Self::CaptureOption) -> io::Result<Self> {
+        let client =
+            Client::from_env(c"dictype").map_err(|err| io::Error::other(err.to_string()))?;
+
+        Ok(Self {
+            client,
+            capture_option,
+        })
+    }
+
+    fn create(&self, cancellation_token: CancellationToken) -> io::Result<AudioStream> {
         let (tx, rx) = mpsc::unbounded_channel::<io::Result<Bytes>>();
+        let client = self.client.clone();
+        let capture_option = self.capture_option.clone();
 
         tokio::spawn(
             async move {
-                if let Err(err) = capture_loop(tx, cancellation_token, capture_option).await {
+                if let Err(err) = capture_loop(tx, cancellation_token, client, capture_option).await
+                {
                     debug!("capture loop ended with error: {err}");
                 }
             }
             .instrument(info_span!("PulseAudioRecorder")),
         );
 
-        Ok(AudioStream(Box::pin(Self {
+        Ok(AudioStream(Box::pin(PulseAudioRecorderStream {
             inner: UnboundedReceiverStream::new(rx),
         })))
     }
 }
 
-impl Stream for PulseAudioRecorder {
+impl Stream for PulseAudioRecorderStream {
     type Item = io::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -58,9 +73,10 @@ impl Stream for PulseAudioRecorder {
 async fn capture_loop(
     tx: mpsc::UnboundedSender<io::Result<Bytes>>,
     cancellation_token: CancellationToken,
+    client: Client,
     capture_option: PulseAudioConfig,
 ) -> Result<(), PulseAudioRecorderError> {
-    let result = run_capture_loop(&tx, cancellation_token, capture_option).await;
+    let result = run_capture_loop(&tx, cancellation_token, &client, capture_option).await;
     if let Err(error) = &result {
         let _ = tx.send(Err(io::Error::other(error.to_string())));
     }
@@ -100,11 +116,10 @@ async fn get_source_info(
 async fn run_capture_loop(
     tx: &mpsc::UnboundedSender<io::Result<Bytes>>,
     cancellation_token: CancellationToken,
+    client: &Client,
     capture_option: PulseAudioConfig,
 ) -> Result<(), PulseAudioRecorderError> {
-    let client = Client::from_env(c"dictype")?;
-
-    let source_info = get_source_info(&client, capture_option.preferred_device.as_deref()).await?;
+    let source_info = get_source_info(client, capture_option.preferred_device.as_deref()).await?;
     trace!("selected source: {source_info:?}");
 
     let params = protocol::RecordStreamParams {
@@ -151,10 +166,11 @@ mod tests {
     #[tokio::test]
     #[cfg_attr(not(has_pulseaudio), ignore = "PulseAudio is likely not available.")]
     async fn emits_pcm_chunks() {
-        let mut recorder =
-            PulseAudioRecorder::create(CancellationToken::new(), PulseAudioConfig::default())
-                .unwrap();
-        match recorder.next().await {
+        let Ok(recorder) = PulseAudioRecorder::new(PulseAudioConfig::default()) else {
+            return;
+        };
+        let mut audio_stream = recorder.create(CancellationToken::new()).unwrap();
+        match audio_stream.next().await {
             Some(Ok(_)) => {}
             _ => panic!("expected audio chunk"),
         }
