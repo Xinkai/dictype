@@ -17,6 +17,11 @@ const CHUNK_MILLIS: usize = 100;
 
 pub struct PcmPlaybackRecorder {
     pcm: &'static [u8],
+    chunk_size: usize,
+}
+
+struct PcmPlaybackStream {
+    pcm: &'static [u8],
     offset: usize,
     chunk_size: usize,
     interval: Interval,
@@ -26,29 +31,33 @@ pub struct PcmPlaybackRecorder {
 impl AudioCapture for PcmPlaybackRecorder {
     type CaptureOption = ();
 
-    fn create(
-        cancellation_token: CancellationToken,
-        _capture_option: Self::CaptureOption,
-    ) -> io::Result<AudioStream> {
+    fn new(_capture_option: Self::CaptureOption) -> io::Result<Self> {
         if PCM_TEST_WAV.len() <= WAV_HEADER_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "wav payload is empty",
             ));
         }
-        let chunk_size = (BYTES_PER_SECOND_16K_MONO_PCM16 * CHUNK_MILLIS) / 1000;
+        let chunk_size = ((BYTES_PER_SECOND_16K_MONO_PCM16 * CHUNK_MILLIS) / 1000).max(1);
 
-        Ok(AudioStream(Box::pin(Self {
+        Ok(Self {
             pcm: &PCM_TEST_WAV[WAV_HEADER_SIZE..],
+            chunk_size,
+        })
+    }
+
+    fn create(&self, cancellation_token: CancellationToken) -> io::Result<AudioStream> {
+        Ok(AudioStream(Box::pin(PcmPlaybackStream {
+            pcm: self.pcm,
             offset: 0,
-            chunk_size: chunk_size.max(1),
+            chunk_size: self.chunk_size,
             interval: time::interval(Duration::from_millis(CHUNK_MILLIS as u64)),
             cancellation_token,
         })))
     }
 }
 
-impl Stream for PcmPlaybackRecorder {
+impl Stream for PcmPlaybackStream {
     type Item = io::Result<Bytes>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -83,8 +92,9 @@ mod tests {
 
     #[tokio::test]
     async fn emits_pcm_chunks() {
-        let mut recorder = PcmPlaybackRecorder::create(CancellationToken::new(), ()).unwrap();
-        let first = recorder.next().await.unwrap().unwrap();
+        let recorder = PcmPlaybackRecorder::new(()).unwrap();
+        let mut audio_stream = recorder.create(CancellationToken::new()).unwrap();
+        let first = audio_stream.next().await.unwrap().unwrap();
         assert!(!first.is_empty());
     }
 }

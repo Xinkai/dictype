@@ -55,10 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("failed to load config, using defaults: {err}");
         ConfigFile::default()
     });
+    let recorder = PulseAudioRecorder::new(config.pulseaudio().clone())?;
     let service = DictypeService::<PulseAudioRecorder>::new(
         client_store::ClientStore::load(&config),
-        PulseAudioRecorder::create,
-        config.pulseaudio().clone(),
+        recorder,
     );
     let incoming = UnixListenerStream::new(listener);
 
