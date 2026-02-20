@@ -75,17 +75,22 @@ TEST(DictypeStateTest,
     DictypeState state;
     state.stage = DictypeStage::Connecting;
 
-    state.setText(MakeResponse(1, "hello ", true));
+    state.setText(MakeResponse(0, "hello ", false));
     EXPECT_EQ(state.stage, DictypeStage::Transcribing);
+    EXPECT_EQ(state.getUncommittedText(), "hello ");
+    EXPECT_EQ(state.takeCommittableText(), std::nullopt);
+    state.setText(MakeResponse(0, "hello world!", true));
     EXPECT_EQ(state.getUncommittedText(), "");
-    auto committable = state.takeCommittableText();
-    ASSERT_TRUE(committable.has_value());
-    EXPECT_EQ(*committable, "hello ");
+    EXPECT_EQ(state.takeCommittableText(), "hello world!");
+    EXPECT_EQ(state.takeCommittableText(), std::nullopt);
 
-    state.setText(MakeResponse(3, "world"));
-    EXPECT_EQ(state.getUncommittedText(), "world");
-    committable = state.takeCommittableText();
-    EXPECT_FALSE(committable.has_value());
+    state.setText(MakeResponse(10, "HELLO ", false));
+    EXPECT_EQ(state.takeCommittableText(), std::nullopt);
+    EXPECT_EQ(state.getUncommittedText(), "HELLO ");
+    state.setText(MakeResponse(10, "HELLO WORLD!", true));
+    EXPECT_EQ(state.takeCommittableText(), "HELLO WORLD!");
+    EXPECT_EQ(state.getUncommittedText(), "");
+    EXPECT_EQ(state.takeCommittableText(), std::nullopt);
 }
 
 TEST(DictypeStateTest, SetErrorStoresFirstErrorAndLocksStage) {

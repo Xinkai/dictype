@@ -46,7 +46,7 @@ class DictypeState final : public fcitx::InputContextProperty {
     [[nodiscard]] std::optional<fcitx::InputContext*> inputContext() const;
 
   private:
-    uint32_t latestCommittableBeginTime_ = 0;
+    int64_t latestCommittableBeginTime_ = -1;
     std::map<uint32_t, std::string> texts_;
     std::string errorMsg_;
     fcitx::TrackableObjectReference<fcitx::InputContext> inputContext_;
