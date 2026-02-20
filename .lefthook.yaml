@@ -15,5 +15,5 @@ pre-commit:
 
      - name: Clang Format
        glob: "*.{cpp,h}"
-       run: cmake -B cmake-build-ci && cmake --build cmake-build-ci --target format
+       run: ./infra/dev/fix-cpp.sh
        stage_fixed: true

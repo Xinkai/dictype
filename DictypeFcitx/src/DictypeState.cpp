@@ -59,8 +59,8 @@ void DictypeState::setText(const Dictype::TranscribeResponse& response) {
     const uint32_t beginTime = response.begin_time();
     texts_[beginTime] = response.text();
     if (response.sentence_end()) {
-        latestCommittableBeginTime_ =
-            std::max(latestCommittableBeginTime_, static_cast<int64_t>(beginTime));
+        latestCommittableBeginTime_ = std::max(latestCommittableBeginTime_,
+                                               static_cast<int64_t>(beginTime));
     }
 }
 
