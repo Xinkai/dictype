@@ -94,6 +94,9 @@ DictypeFcitx::~DictypeFcitx() = default;
 fcitx::Instance* DictypeFcitx::instance() const { return instance_; }
 
 void DictypeFcitx::closeUI_() const {
+    if (state_.getStage() == DictypeStage::Errored) {
+        return;
+    }
     const auto inputContextOpt = state_.inputContext();
     if (!inputContextOpt.has_value()) {
         DICTYPE_WARN() << "input context is gone.";
@@ -142,7 +145,7 @@ void DictypeFcitx::updateUI_() const {
 
     {
         fcitx::Text auxUp;
-        switch (state_.stage) {
+        switch (state_.getStage()) {
         case DictypeStage::Closed: {
             break;
         }
@@ -303,8 +306,8 @@ void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
         (void)new GrpcClient(stub.get(), std::move(onResponse),
                              std::move(onDone), profileName);
         // Mark running only after we've successfully dispatched the stream.
-        if (state_.stage == DictypeStage::Closed) {
-            state_.stage = DictypeStage::Connecting;
+        if (state_.getStage() == DictypeStage::Closed) {
+            state_.setConnecting();
             running_.store(true, std::memory_order_release);
             DICTYPE_INFO() << "Started transcribe stream.";
         }
@@ -317,7 +320,7 @@ void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
 }
 
 void DictypeFcitx::stop_() const {
-    if (state_.stage == DictypeStage::Stopping) {
+    if (state_.getStage() == DictypeStage::Stopping) {
         DICTYPE_INFO() << "Stop RPC skipped: already stopping.";
         return;
     }

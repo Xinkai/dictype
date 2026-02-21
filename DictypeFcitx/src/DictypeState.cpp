@@ -16,9 +16,6 @@ void DictypeState::clear() {
         DICTYPE_WARN() << "uncommitted texts: " << getUncommittedText();
         texts_.clear();
     }
-    stage = DictypeStage::Closed;
-    errorMsg_.clear();
-    inputContext_.unwatch();
     cleared_ = true;
 }
 
@@ -26,6 +23,11 @@ bool DictypeState::newSession(fcitx::InputContext* inputContext) {
     if (!cleared_) {
         DICTYPE_WARN() << "Previous session is not cleared.";
         return false;
+    }
+    if (stage_ == DictypeStage::Errored) {
+        stage_ = DictypeStage::Closed;
+        errorMsg_.clear();
+        inputContext_.unwatch();
     }
     if (inputContext == nullptr) {
         inputContext_.unwatch();
@@ -37,24 +39,32 @@ bool DictypeState::newSession(fcitx::InputContext* inputContext) {
 }
 
 void DictypeState::stop() {
-    if (stage == DictypeStage::Connecting ||
-        stage == DictypeStage::Transcribing) {
-        stage = DictypeStage::Stopping;
+    if (stage_ == DictypeStage::Connecting ||
+        stage_ == DictypeStage::Transcribing) {
+        stage_ = DictypeStage::Stopping;
     } else {
         DICTYPE_WARN() << "not in connecting or transcribing state.";
     }
 }
 
+void DictypeState::setConnecting() {
+    if (stage_ != DictypeStage::Closed) {
+        DICTYPE_WARN() << "not in closed state.";
+        return;
+    }
+    stage_ = DictypeStage::Connecting;
+}
+
 void DictypeState::setText(const Dictype::TranscribeResponse& response) {
-    if (!(stage == DictypeStage::Connecting ||
-          stage == DictypeStage::Transcribing ||
-          stage == DictypeStage::Stopping)) {
+    if (!(stage_ == DictypeStage::Connecting ||
+          stage_ == DictypeStage::Transcribing ||
+          stage_ == DictypeStage::Stopping)) {
         DICTYPE_WARN()
             << "not in connecting or transcribing or stopping state.";
         return;
     }
-    if (stage == DictypeStage::Connecting) {
-        stage = DictypeStage::Transcribing;
+    if (stage_ == DictypeStage::Connecting) {
+        stage_ = DictypeStage::Transcribing;
     }
     const uint32_t beginTime = response.begin_time();
     texts_[beginTime] = response.text();
@@ -89,10 +99,10 @@ std::optional<std::string> DictypeState::takeCommittableText() {
 
 void DictypeState::setError(const std::string& errorMsg) {
     DICTYPE_WARN() << errorMsg;
-    if (stage == DictypeStage::Errored) {
+    if (stage_ == DictypeStage::Errored) {
         return;
     }
-    stage = DictypeStage::Errored;
+    stage_ = DictypeStage::Errored;
     errorMsg_ = errorMsg;
 }
 
