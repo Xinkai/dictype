@@ -54,6 +54,7 @@ Setup
    Backend = "ParaformerV2"
    Config = {
        dashscope_api_key = "...",                   # required
+       dashscope_websocket_url = "wss://dashscope.aliyuncs.com/api-ws/v1/inference", # optional
        disfluency_removal_enabled = true,           # optional
        language_hints = ["zh"],                     # optional
        semantic_punctuation_enabled = false,        # optional
@@ -67,6 +68,7 @@ Setup
    Backend = "QwenV3"
    Config = {
        dashscope_api_key = "...",                                       # required
+       dashscope_websocket_url = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime", # optional
        language = "en",                                                 # optional
        turn_detection = { threshold = 0.2, silence_duration_ms = 900 }, # optional
    }

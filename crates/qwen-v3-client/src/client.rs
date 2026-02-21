@@ -226,9 +226,7 @@ impl AsrClient for QwenV3Client {
     ) -> impl Future<Output = Result<Self::TranscriptionStream, anyhow::Error>> {
         let config = self.config.clone();
         async move {
-            let mut request =
-                "wss://dashscope.aliyuncs.com/api-ws/v1/realtime?model=qwen3-asr-flash-realtime"
-                    .into_client_request()?;
+            let mut request = config.websocket_url().into_client_request()?;
             let headers = request.headers_mut();
 
             headers.insert(
@@ -273,6 +271,7 @@ mod tests {
 
         let config = QwenV3Config {
             dashscope_api_key: std::env::var("DASHSCOPE_API_KEY").unwrap(),
+            dashscope_websocket_url: None,
             language: Some(Language::English),
             turn_detection: None,
         };
