@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::types::Language;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TurnDetection {
     pub threshold: f32,
     pub silence_duration_ms: u32,
@@ -18,6 +19,7 @@ impl Default for TurnDetection {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct QwenV3Config {
     pub dashscope_api_key: String,
     pub dashscope_websocket_url: Option<String>,
