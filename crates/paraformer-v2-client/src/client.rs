@@ -176,8 +176,7 @@ impl AsrClient for ParaformerV2Client {
     ) -> impl Future<Output = Result<Self::TranscriptionStream, anyhow::Error>> {
         let config = self.config.clone();
         async move {
-            let mut request =
-                "wss://dashscope.aliyuncs.com/api-ws/v1/inference".into_client_request()?;
+            let mut request = config.websocket_url().into_client_request()?;
             let headers = request.headers_mut();
 
             headers.insert(
