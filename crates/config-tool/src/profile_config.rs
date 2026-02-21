@@ -4,7 +4,7 @@ use paraformer_v2_client::config::ParaformerV2Config;
 use qwen_v3_client::config::QwenV3Config;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "Backend", content = "Config")]
+#[serde(tag = "Backend", content = "Config", deny_unknown_fields)]
 pub enum ProfileConfig {
     ParaformerV2(ParaformerV2Config),
     QwenV3(QwenV3Config),

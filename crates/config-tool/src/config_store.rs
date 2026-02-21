@@ -10,6 +10,7 @@ use crate::config_store_error::ConfigStoreError;
 use crate::profile_config::ProfileConfig;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConfigFile {
     #[serde(rename = "PulseAudio", default)]
     pulseaudio: PulseAudioConfig,

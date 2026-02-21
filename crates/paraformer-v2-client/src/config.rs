@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::types;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ParaformerV2Config {
     pub dashscope_api_key: String,
     pub dashscope_websocket_url: Option<String>,
