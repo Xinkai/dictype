@@ -107,7 +107,7 @@ dependencies = [
 
 [[package]]
 name = "base-client"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "futures-util",
@@ -175,7 +175,7 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
 name = "config-tool"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "paraformer-v2-client",
  "pulseaudio-recorder",
@@ -228,7 +228,7 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 
 [[package]]
 name = "dictyped"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "base-client",
@@ -933,7 +933,7 @@ dependencies = [
 
 [[package]]
 name = "paraformer-v2-client"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -952,7 +952,7 @@ dependencies = [
 
 [[package]]
 name = "pcm-playback-recorder"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base-client",
  "futures-util",
@@ -1144,7 +1144,7 @@ dependencies = [
 
 [[package]]
 name = "pulseaudio-recorder"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base-client",
  "futures-util",
@@ -1168,7 +1168,7 @@ dependencies = [
 
 [[package]]
 name = "qwen-v3-client"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "async-stream",
