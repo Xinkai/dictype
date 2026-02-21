@@ -35,18 +35,21 @@ Setup
    # Put it at `~/.config/dictype.toml`.
    
    [PulseAudio]
-   # Use the following command to get a list of available `device_name`.
+   # Use the following command to get a list of available `source_name`.
    # $ pactl --format json list sources \
    #   | jq '[
    #     .[]
    #     | select((.monitor_of_sink == null) and (.name | endswith(".monitor") | not))
    #     | {
-   #         device_name: .properties["device.name"],
-   #         device_alias: .properties["device.alias"],
-   #         device_description: .properties["device.description"]
-   #       }
+   #         source_name: .["name"],
+   #         properties: {
+   #            device_name: .properties["device.name"],
+   #            device_alias: .properties["device.alias"],
+   #            device_description: .properties["device.description"]
+   #         }
+   #     }
    #   ]'
-   preferred_device = "..." # optional
+   preferred_source_name = "..." # optional
    
    # You can have up to 5 profiles at the same time, starting with Profile1.
    # Each profile may have different formats depending on the model (Backend).
