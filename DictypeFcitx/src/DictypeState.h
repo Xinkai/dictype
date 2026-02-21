@@ -30,6 +30,10 @@ class DictypeState final : public fcitx::InputContextProperty {
 
     void stop();
 
+    DictypeStage getStage() const { return stage_; }
+
+    void setConnecting();
+
     /**
      * create / update `text` at beginTime
      */
@@ -37,8 +41,6 @@ class DictypeState final : public fcitx::InputContextProperty {
 
     [[nodiscard]] std::string getUncommittedText() const;
     std::optional<std::string> takeCommittableText();
-
-    DictypeStage stage{DictypeStage::Closed};
 
     void setError(const std::string& errorMsg);
     [[nodiscard]] std::string getErrorMsg() const;
@@ -51,4 +53,5 @@ class DictypeState final : public fcitx::InputContextProperty {
     std::string errorMsg_;
     fcitx::TrackableObjectReference<fcitx::InputContext> inputContext_;
     bool cleared_ = true;
+    DictypeStage stage_{DictypeStage::Closed};
 };
