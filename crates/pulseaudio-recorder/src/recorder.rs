@@ -119,7 +119,8 @@ async fn run_capture_loop(
     client: &Client,
     capture_option: PulseAudioConfig,
 ) -> Result<(), PulseAudioRecorderError> {
-    let source_info = get_source_info(client, capture_option.preferred_source_name.as_deref()).await?;
+    let source_info =
+        get_source_info(client, capture_option.preferred_source_name.as_deref()).await?;
     trace!("selected source: {source_info:?}");
 
     let params = protocol::RecordStreamParams {
