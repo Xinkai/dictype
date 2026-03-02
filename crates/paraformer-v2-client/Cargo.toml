@@ -19,6 +19,7 @@ tokio-tungstenite = { workspace = true, default-features = false, features = ["n
 tungstenite = { workspace = true, default-features = false, features = ["url", "native-tls"] }
 uuid = { workspace = true, default-features = false, features = ["serde", "v4", "std"] }
 futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
+async-trait = { workspace = true }
 async-stream = { workspace = true }
 tokio-util = { workspace = true }
 

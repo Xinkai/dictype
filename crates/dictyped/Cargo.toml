@@ -14,18 +14,18 @@ qwen-v3-client = { path = "../qwen-v3-client" }
 config-tool = { path = "../config-tool" }
 pulseaudio-recorder = { path = "../pulseaudio-recorder" }
 
+async-trait = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "process", "io-util"] }
 tokio-stream = { workspace = true, features = [] }
 tokio-util = { workspace = true }
 futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
-pin-project-lite = { workspace = true }
 
 libc = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 
 # Grpc
-tonic = { workspace = true, features = ["codegen", "transport", "server", "router"] }
+tonic = { workspace = true, features = ["transport", "server", "router"] }
 
 # Logging
 tracing = { workspace = true }

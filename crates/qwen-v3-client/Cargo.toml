@@ -19,6 +19,7 @@ tokio-tungstenite = { workspace = true, features = ["native-tls", "connect"] }
 tungstenite = { workspace = true, features = ["url", "native-tls"] }
 base64 = { workspace = true }
 futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
+async-trait = { workspace = true }
 async-stream = { workspace = true }
 tokio-util = { workspace = true }
 tokio-stream = { workspace = true }

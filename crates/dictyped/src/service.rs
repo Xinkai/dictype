@@ -25,7 +25,7 @@ where
     recorder: Arc<R>,
 }
 
-#[tonic::async_trait]
+#[async_trait::async_trait]
 impl<R> Dictype for DictypeService<R>
 where
     R: AudioCapture + Send + Sync + 'static,
