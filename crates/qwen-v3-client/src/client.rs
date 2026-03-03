@@ -247,21 +247,23 @@ impl AsrClient for QwenV3Client {
 mod tests {
     use std::time::Duration;
 
-    use base_client::asr_client::AsrClient;
-    use base_client::audio_stream::AudioCapture;
-
-    use super::*;
     use crate::types::Language;
-    use pcm_playback_recorder::PcmPlaybackRecorder;
     use tokio::time::sleep;
     use tokio_stream::StreamExt;
     use tokio_util::sync::CancellationToken;
+
+    use super::*;
+    use base_client::asr_client::AsrClient;
+    use base_client::audio_stream::AudioCapture;
+    use pcm_playback_recorder::{PcmPlaybackCaptureOption, PcmPlaybackRecorder};
 
     #[cfg_attr(not(has_dashscope), ignore = "requires DASHSCOPE_API_KEY env var")]
     #[tokio::test]
     async fn connect() {
         let cancellation = CancellationToken::new();
-        let recorder = PcmPlaybackRecorder::new(()).unwrap();
+        let wav_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../assets/harvard.16k.mono.wav");
+        let recorder = PcmPlaybackRecorder::new(PcmPlaybackCaptureOption::new(wav_path)).unwrap();
         let audio_stream = recorder.create(cancellation.clone()).unwrap();
         tokio::spawn(async move {
             sleep(Duration::from_secs(5)).await;

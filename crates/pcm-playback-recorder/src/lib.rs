@@ -1,5 +1,7 @@
 use std::io;
+use std::path::PathBuf;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -10,45 +12,53 @@ use tokio_util::sync::CancellationToken;
 
 use base_client::audio_stream::{AudioCapture, AudioStream};
 
-const PCM_TEST_WAV: &[u8] = include_bytes!("../../../assets/harvard.16k.mono.wav");
 const WAV_HEADER_SIZE: usize = 44;
 const BYTES_PER_SECOND_16K_MONO_PCM16: usize = 16_000 * 2;
 const CHUNK_MILLIS: usize = 100;
 
 pub struct PcmPlaybackRecorder {
-    pcm: &'static [u8],
+    pcm: Arc<[u8]>,
     chunk_size: usize,
 }
 
 struct PcmPlaybackStream {
-    pcm: &'static [u8],
+    pcm: Arc<[u8]>,
     offset: usize,
     chunk_size: usize,
     interval: Interval,
     cancellation_token: CancellationToken,
 }
 
-impl AudioCapture for PcmPlaybackRecorder {
-    type CaptureOption = ();
+pub struct PcmPlaybackCaptureOption {
+    pub file: PathBuf,
+}
 
-    fn new(_capture_option: Self::CaptureOption) -> io::Result<Self> {
-        if PCM_TEST_WAV.len() <= WAV_HEADER_SIZE {
+impl PcmPlaybackCaptureOption {
+    pub fn new(file: impl Into<PathBuf>) -> Self {
+        Self { file: file.into() }
+    }
+}
+
+impl AudioCapture for PcmPlaybackRecorder {
+    type CaptureOption = PcmPlaybackCaptureOption;
+
+    fn new(capture_option: Self::CaptureOption) -> io::Result<Self> {
+        let wav = std::fs::read(&capture_option.file)?;
+        if wav.len() <= WAV_HEADER_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "wav payload is empty",
             ));
         }
         let chunk_size = ((BYTES_PER_SECOND_16K_MONO_PCM16 * CHUNK_MILLIS) / 1000).max(1);
+        let pcm = Arc::<[u8]>::from(wav[WAV_HEADER_SIZE..].to_vec());
 
-        Ok(Self {
-            pcm: &PCM_TEST_WAV[WAV_HEADER_SIZE..],
-            chunk_size,
-        })
+        Ok(Self { pcm, chunk_size })
     }
 
     fn create(&self, cancellation_token: CancellationToken) -> io::Result<AudioStream> {
         Ok(AudioStream(Box::pin(PcmPlaybackStream {
-            pcm: self.pcm,
+            pcm: self.pcm.clone(),
             offset: 0,
             chunk_size: self.chunk_size,
             interval: time::interval(Duration::from_millis(CHUNK_MILLIS as u64)),
@@ -90,9 +100,14 @@ mod tests {
     use base_client::audio_stream::AudioCapture;
     use tokio_stream::StreamExt;
 
+    fn test_wav_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../assets/harvard.16k.mono.wav")
+    }
+
     #[tokio::test]
     async fn emits_pcm_chunks() {
-        let recorder = PcmPlaybackRecorder::new(()).unwrap();
+        let recorder =
+            PcmPlaybackRecorder::new(PcmPlaybackCaptureOption::new(test_wav_path())).unwrap();
         let mut audio_stream = recorder.create(CancellationToken::new()).unwrap();
         let first = audio_stream.next().await.unwrap().unwrap();
         assert!(!first.is_empty());
