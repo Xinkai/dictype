@@ -110,6 +110,7 @@ name = "base-client"
 version = "0.0.5"
 dependencies = [
  "anyhow",
+ "async-trait",
  "futures-util",
  "prost",
  "tokio-util",
@@ -231,12 +232,12 @@ name = "dictyped"
 version = "0.0.5"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base-client",
  "config-tool",
  "futures-util",
  "libc",
  "paraformer-v2-client",
- "pin-project-lite",
  "pulseaudio-recorder",
  "qwen-v3-client",
  "thiserror 2.0.18",
@@ -937,6 +938,7 @@ version = "0.0.5"
 dependencies = [
  "anyhow",
  "async-stream",
+ "async-trait",
  "base-client",
  "futures-util",
  "serde",
@@ -1172,6 +1174,7 @@ version = "0.0.5"
 dependencies = [
  "anyhow",
  "async-stream",
+ "async-trait",
  "base-client",
  "base64",
  "futures-util",

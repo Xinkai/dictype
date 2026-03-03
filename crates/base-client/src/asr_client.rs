@@ -1,13 +1,14 @@
 use crate::audio_stream::AudioStream;
 
+#[async_trait::async_trait]
 pub trait AsrClient {
     type Config;
     type TranscriptionStream;
 
     fn new(config: impl Into<Self::Config>) -> Self;
 
-    fn create(
+    async fn create(
         &self,
         audio_stream: AudioStream,
-    ) -> impl Future<Output = Result<Self::TranscriptionStream, anyhow::Error>>;
+    ) -> Result<Self::TranscriptionStream, anyhow::Error>;
 }

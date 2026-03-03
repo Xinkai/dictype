@@ -210,6 +210,7 @@ where
     }
 }
 
+#[async_trait::async_trait]
 impl AsrClient for QwenV3Client {
     type Config = QwenV3Config;
     type TranscriptionStream = TranscribeStream<anyhow::Error>;
@@ -220,27 +221,25 @@ impl AsrClient for QwenV3Client {
         }
     }
 
-    fn create(
+    async fn create(
         &self,
         audio_stream: AudioStream,
-    ) -> impl Future<Output = Result<Self::TranscriptionStream, anyhow::Error>> {
+    ) -> Result<Self::TranscriptionStream, anyhow::Error> {
         let config = self.config.clone();
-        async move {
-            let mut request = config.websocket_url().into_client_request()?;
-            let headers = request.headers_mut();
+        let mut request = config.websocket_url().into_client_request()?;
+        let headers = request.headers_mut();
 
-            headers.insert(
-                AUTHORIZATION,
-                HeaderValue::from_str(&format!("Bearer {}", config.dashscope_api_key))
-                    .map_err(|_| anyhow::anyhow!("invalid header value for `Authorization`"))?,
-            );
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {}", config.dashscope_api_key))
+                .map_err(|_| anyhow::anyhow!("invalid header value for `Authorization`"))?,
+        );
 
-            let (ws_stream, _resp) = connect_async(request).await?;
-            let transcribe_stream = transcribe(ws_stream, audio_stream, config)
-                .map(|item| item.map_err(anyhow::Error::from));
+        let (ws_stream, _resp) = connect_async(request).await?;
+        let transcribe_stream = transcribe(ws_stream, audio_stream, config)
+            .map(|item| item.map_err(anyhow::Error::from));
 
-            Ok(TranscribeStream::new(Box::pin(transcribe_stream)))
-        }
+        Ok(TranscribeStream::new(Box::pin(transcribe_stream)))
     }
 }
 
