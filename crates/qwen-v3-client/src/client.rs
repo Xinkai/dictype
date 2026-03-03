@@ -1,10 +1,7 @@
-use std::io;
-
 use async_stream::stream;
 use futures_util::{SinkExt, Stream, StreamExt};
 use tokio::select;
 use tokio_tungstenite::connect_async;
-use tokio_util::bytes::Bytes;
 use tracing::{error, info, trace};
 use tungstenite::Message;
 use tungstenite::client::IntoClientRequest;
@@ -36,7 +33,7 @@ enum Stage {
 
 fn transcribe<W>(
     web_socket_stream: W,
-    mut audio_stream: impl Stream<Item = io::Result<Bytes>> + Unpin,
+    mut audio_stream: AudioStream,
     config: QwenV3Config,
 ) -> impl Stream<Item = Result<TranscribeResponse, QwenV3Error>>
 where

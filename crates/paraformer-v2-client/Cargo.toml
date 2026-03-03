@@ -21,7 +21,6 @@ uuid = { workspace = true, default-features = false, features = ["serde", "v4", 
 futures-util = { workspace = true, default-features = false, features = ["sink", "std"] }
 async-trait = { workspace = true }
 async-stream = { workspace = true }
-tokio-util = { workspace = true }
 
 # Logging
 tracing = { workspace = true }

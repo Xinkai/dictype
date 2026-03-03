@@ -1,5 +1,3 @@
-use std::io;
-
 use async_stream::stream;
 use futures_util::Stream;
 use futures_util::{SinkExt, StreamExt};
@@ -9,7 +7,6 @@ use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::http::header::AUTHORIZATION;
-use tokio_util::bytes::Bytes;
 use tracing::{error, info, trace};
 
 use base_client::asr_client::AsrClient;
@@ -36,7 +33,7 @@ enum Stage {
 
 fn transcribe<W>(
     web_socket_stream: W,
-    mut audio_stream: impl Stream<Item = io::Result<Bytes>> + Unpin,
+    mut audio_stream: AudioStream,
     config: ParaformerV2Config,
 ) -> impl Stream<Item = Result<TranscribeResponse, ParaformerV2Error>>
 where
