@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -15,18 +14,13 @@ pub struct ConfigFile {
     #[serde(rename = "PulseAudio", default)]
     pulseaudio: PulseAudioConfig,
 
-    #[serde(flatten)]
+    #[serde(rename = "Profiles", default)]
     profiles: BTreeMap<String, ProfileConfig>,
 }
 
 impl ConfigFile {
-    pub fn load() -> Result<Self, ConfigStoreError> {
-        let path = config_path()?;
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-        let data = fs::read_to_string(&path)?;
-        let config = toml::from_str(&data)?;
+    pub fn parse(content: &str) -> Result<Self, ConfigStoreError> {
+        let config = toml::from_str(content)?;
         Ok(config)
     }
 
@@ -41,10 +35,56 @@ impl ConfigFile {
     }
 }
 
-fn config_path() -> Result<PathBuf, ConfigStoreError> {
+pub fn get_config_path() -> Result<PathBuf, ConfigStoreError> {
     let home = std::env::var_os("HOME").ok_or(ConfigStoreError::MissingHome)?;
     let mut path = PathBuf::from(home);
     path.push(".config");
     path.push("dictype.toml");
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_config_path() {
+        assert!(get_config_path().is_ok());
+    }
+
+    #[test]
+    fn test_load_profiles() {
+        let config = r#"
+        [Profiles.Profile1]
+        Backend = "ParaformerV2"
+        Config = { dashscope_api_key = "fake" }
+        "#;
+
+        let config = ConfigFile::parse(config).unwrap();
+        assert_eq!(config.profiles.len(), 1);
+    }
+
+    #[test]
+    fn test_load_profiles_with_pulseaudio() {
+        let config = r#"
+        [PulseAudio]
+
+        [Profiles.Profile1]
+        Backend = "ParaformerV2"
+        Config = { dashscope_api_key = "fake" }
+        "#;
+
+        let config = ConfigFile::parse(config).unwrap();
+        assert_eq!(config.profiles.len(), 1);
+    }
+
+    #[test]
+    fn test_reject_known_sections() {
+        let config = r"
+        [Unknown]
+        a = 1
+        ";
+
+        assert!(ConfigFile::parse(config).is_err());
+    }
 }

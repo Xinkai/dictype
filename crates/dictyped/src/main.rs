@@ -17,7 +17,6 @@ use std::{
     io,
     path::{Path, PathBuf},
 };
-
 use tokio::net::UnixListener;
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::transport::Server;
@@ -25,7 +24,7 @@ use tracing::{info, warn};
 
 use base_client::audio_stream::AudioCapture;
 use base_client::grpc_server::DictypeServer;
-use config_tool::config_store::ConfigFile;
+use config_tool::config_store::{ConfigFile, get_config_path};
 use pulseaudio_recorder::PulseAudioRecorder;
 
 use crate::service::DictypeService;
@@ -51,10 +50,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         warn!("failed to adjust socket permissions: {err}");
     }
 
-    let config = ConfigFile::load().unwrap_or_else(|err| {
-        warn!("failed to load config, using defaults: {err}");
-        ConfigFile::default()
-    });
+    let config = {
+        let path = get_config_path()?;
+        let content = fs::read_to_string(&path)?;
+
+        ConfigFile::parse(&content).unwrap_or_else(|err| {
+            warn!("failed to load config, using defaults: {err}");
+            ConfigFile::default()
+        })
+    };
+
     let recorder = PulseAudioRecorder::new(config.pulseaudio().clone())?;
     let service = DictypeService::<PulseAudioRecorder>::new(
         client_store::ClientStore::load(&config),

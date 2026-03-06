@@ -53,7 +53,7 @@ Setup
    
    # You can have up to 5 profiles at the same time, starting with Profile1.
    # Each profile may have different formats depending on the model (Backend).
-   [Profile1]
+   [Profiles.Profile1]
    Backend = "ParaformerV2"
    Config = {
        dashscope_api_key = "...",                   # required
@@ -67,7 +67,7 @@ Setup
        inverse_text_normalization_enabled = true,   # optional
    }
    
-   [Profile2]
+   [Profiles.Profile2]
    Backend = "QwenV3"
    Config = {
        dashscope_api_key = "...",                                       # required
