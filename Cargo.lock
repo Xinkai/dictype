@@ -232,10 +232,10 @@ name = "dictyped"
 version = "0.0.6"
 dependencies = [
  "anyhow",
+ "async-stream",
  "async-trait",
  "base-client",
  "config-tool",
- "futures-util",
  "libc",
  "paraformer-v2-client",
  "pulseaudio-recorder",

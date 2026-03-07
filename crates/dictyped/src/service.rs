@@ -58,7 +58,7 @@ where
             .ok_or_else(|| {
                 Status::invalid_argument(format!("profile not found: {:?}", &req.profile_name))
             })?;
-        info!("found asr client: {:?}", &asr_client);
+        info!("found asr client for profile: {}", &req.profile_name);
 
         // Expose cancellation so Stop can signal this session.
         let recording_cancellation = CancellationToken::new();
@@ -82,6 +82,7 @@ where
                     let _ = tx
                         .send(Err(Status::internal(format!("failed to record: {e:?}"))))
                         .await;
+                    let _ = state.lock().expect("state poisoned").reset();
                     return;
                 }
             };
@@ -95,6 +96,7 @@ where
                 Ok(client) => client,
                 Err(e) => {
                     let _ = tx.send(Err(e)).await;
+                    let _ = state.lock().expect("state poisoned").reset();
                     return;
                 }
             };
@@ -149,38 +151,274 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::io;
-
     use super::*;
     use tonic::Code;
 
-    use base_client::audio_stream::AudioStream;
-    use config_tool::config_store::ConfigFile;
+    use crate::client::BackendClient;
+    use crate::service::tests::mock_services::*;
 
-    struct NeverRecorder;
+    mod mock_recorders {
+        use std::io;
 
-    impl AudioCapture for NeverRecorder {
-        type CaptureOption = ();
+        use async_stream::stream;
+        use tokio_util::bytes::Bytes;
+        use tokio_util::sync::CancellationToken;
 
-        fn new(_capture_option: Self::CaptureOption) -> io::Result<Self> {
-            Ok(Self)
+        use base_client::audio_stream::{AudioCapture, AudioStream};
+
+        pub(super) struct NoiseRecorder {
+            remaining: usize,
         }
 
-        fn create(&self, _cancellation_token: CancellationToken) -> io::Result<AudioStream> {
-            Ok(AudioStream(Box::pin(futures_util::stream::empty())))
+        impl AudioCapture for NoiseRecorder {
+            type CaptureOption = usize;
+
+            fn new(emit_count: Self::CaptureOption) -> io::Result<Self> {
+                Ok(Self {
+                    remaining: emit_count,
+                })
+            }
+
+            fn create(&self, _cancellation_token: CancellationToken) -> io::Result<AudioStream> {
+                let mut remaining = self.remaining;
+                Ok(AudioStream(Box::pin(stream! {
+                    let mut value = 0x1234_5678_u32;
+
+                    loop {
+                        if remaining == 0 {
+                            return;
+                        }
+                        value = value.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                        yield Ok(Bytes::from(value.to_le_bytes().to_vec()));
+                        remaining -= 1;
+                    }
+                })))
+            }
+        }
+
+        pub(super) struct ImmediateBadCaptureRecorder;
+
+        impl AudioCapture for ImmediateBadCaptureRecorder {
+            type CaptureOption = ();
+
+            fn new(_capture_option: Self::CaptureOption) -> io::Result<Self> {
+                Ok(Self)
+            }
+
+            fn create(&self, _cancellation_token: CancellationToken) -> io::Result<AudioStream> {
+                Err(io::Error::other("immediate bad capture boom!"))
+            }
+        }
+
+        pub(super) struct BadCaptureRecorder {
+            success_count: usize,
+        }
+
+        impl AudioCapture for BadCaptureRecorder {
+            type CaptureOption = usize;
+
+            fn new(success_count: Self::CaptureOption) -> io::Result<Self> {
+                Ok(Self { success_count })
+            }
+
+            fn create(&self, _cancellation_token: CancellationToken) -> io::Result<AudioStream> {
+                let mut remaining = self.success_count;
+                Ok(AudioStream(Box::pin(stream! {
+                    while remaining > 0 {
+                        yield Ok(Bytes::from(vec![0x12, 0x34, 0x56, 0x78]));
+                        remaining -= 1;
+                    }
+                    yield Err(io::Error::other("bad capture boom!"));
+                })))
+            }
         }
     }
 
-    fn empty_service() -> DictypeService<NeverRecorder> {
-        DictypeService::new(
-            ClientStore::load(&ConfigFile::default()),
-            NeverRecorder::new(()).expect("NeverRecorder must initialize"),
-        )
+    mod mock_clients {
+        use anyhow::anyhow;
+        use async_stream::stream;
+        use tokio_stream::StreamExt;
+
+        use base_client::audio_stream::AudioStream;
+        use base_client::grpc_server::TranscribeResponse;
+        use base_client::transcribe_stream::TranscribeStream;
+
+        use crate::client::BackendClient;
+
+        pub(super) struct ImmediateBadAsrClient;
+
+        #[async_trait::async_trait]
+        impl BackendClient for ImmediateBadAsrClient {
+            async fn create_transcription_stream(
+                &self,
+                _audio_stream: AudioStream,
+            ) -> Result<TranscribeStream<anyhow::Error>, anyhow::Error> {
+                Err(anyhow!("immediate bad asr client boom!"))
+            }
+        }
+
+        pub(super) struct BadAsrClient {
+            pub(crate) remaining_success: usize,
+        }
+
+        #[async_trait::async_trait]
+        impl BackendClient for BadAsrClient {
+            async fn create_transcription_stream(
+                &self,
+                mut audio_stream: AudioStream,
+            ) -> Result<TranscribeStream<anyhow::Error>, anyhow::Error> {
+                let remaining_success = self.remaining_success;
+                Ok(TranscribeStream::new(Box::pin(stream! {
+                    let mut success = 0;
+                    while let Some(chunk) = audio_stream.next().await {
+                        let _chunk = match chunk {
+                            Ok(chunk) => chunk,
+                            Err(err) => {
+                                yield Err(err.into());
+                                return;
+                            }
+                        };
+                        if (success < remaining_success) {
+                            yield Ok(TranscribeResponse {
+                                begin_time: 0,
+                                sentence_end: false,
+                                text: "ok".to_string(),
+                            });
+                            success += 1;
+                        } else {
+                            yield Err(anyhow!("bad asr client boom!"));
+                        }
+                    };
+                })))
+            }
+        }
+
+        pub(super) struct YesAsrClient;
+
+        #[async_trait::async_trait]
+        impl BackendClient for YesAsrClient {
+            async fn create_transcription_stream(
+                &self,
+                mut audio_stream: AudioStream,
+            ) -> Result<TranscribeStream<anyhow::Error>, anyhow::Error> {
+                Ok(TranscribeStream::new(Box::pin(stream! {
+                    while let Some(chunk) = audio_stream.next().await {
+                        let _chunk = match chunk {
+                            Ok(chunk) => chunk,
+                            Err(err) => {
+                                yield Err(err.into());
+                                return;
+                            }
+                        };
+                         yield Ok(TranscribeResponse {
+                            begin_time: 0,
+                            sentence_end: false,
+                            text: "yes".to_string(),
+                        })
+                    };
+                })))
+            }
+        }
+    }
+
+    mod mock_services {
+        use std::collections::BTreeMap;
+        use std::sync::Arc;
+
+        use base_client::audio_stream::AudioCapture;
+
+        use crate::client::BackendClient;
+        use crate::client_store::ClientStore;
+        use crate::service::DictypeService;
+        use crate::service::tests::mock_clients::*;
+        use crate::service::tests::mock_recorders::*;
+
+        pub(super) fn bad_capture_service(
+            success_count: usize,
+        ) -> DictypeService<BadCaptureRecorder> {
+            let mut clients = BTreeMap::new();
+            clients.insert(
+                "yes-asr".to_string(),
+                Arc::new(YesAsrClient {}) as Arc<dyn BackendClient + Send + Sync>,
+            );
+            DictypeService::new(
+                ClientStore::from_clients(clients),
+                BadCaptureRecorder::new(success_count).expect("BadCaptureRecorder must initialize"),
+            )
+        }
+
+        pub(super) fn immediate_bad_capture_service() -> DictypeService<ImmediateBadCaptureRecorder>
+        {
+            let mut clients = BTreeMap::new();
+            clients.insert(
+                "yes-asr".to_string(),
+                Arc::new(YesAsrClient {}) as Arc<dyn BackendClient + Send + Sync>,
+            );
+            DictypeService::new(
+                ClientStore::from_clients(clients),
+                ImmediateBadCaptureRecorder::new(())
+                    .expect("ImmediateBadCaptureRecorder must initialize"),
+            )
+        }
+
+        pub(super) fn asr_service(
+            capture_count: usize,
+            asr_count_before_bad: usize,
+        ) -> DictypeService<NoiseRecorder> {
+            let mut clients = BTreeMap::new();
+            clients.insert(
+                "immediate-bad-asr".to_string(),
+                Arc::new(ImmediateBadAsrClient {}) as Arc<dyn BackendClient + Send + Sync>,
+            );
+            clients.insert(
+                "bad-asr".to_string(),
+                Arc::new(BadAsrClient {
+                    remaining_success: asr_count_before_bad,
+                }) as Arc<dyn BackendClient + Send + Sync>,
+            );
+            clients.insert(
+                "yes-asr".to_string(),
+                Arc::new(YesAsrClient {}) as Arc<dyn BackendClient + Send + Sync>,
+            );
+
+            DictypeService::new(
+                ClientStore::from_clients(clients),
+                NoiseRecorder::new(capture_count).expect("NoiseRecorder must initialize"),
+            )
+        }
+    }
+
+    #[tokio::test]
+    async fn capture_ends() {
+        let capture_count = 1024;
+        let asr_count_before_bad = 0; // does not matter
+        let service = asr_service(capture_count, asr_count_before_bad);
+
+        let make_request_to_immediate_bad_asr = async || {
+            let response = service
+                .transcribe(Request::new(TranscribeRequest {
+                    profile_name: "yes-asr".to_string(),
+                }))
+                .await
+                .expect("transcribe should return a stream");
+            let mut stream = response.into_inner();
+
+            let mut success_count = 0;
+            while let Some(result) = stream.next().await {
+                let success = result.expect("stream should not fail");
+                assert_eq!(success.text, "yes");
+                success_count += 1;
+            }
+            assert_eq!(success_count, capture_count);
+            assert!(stream.next().await.is_none());
+        };
+        make_request_to_immediate_bad_asr().await;
+        make_request_to_immediate_bad_asr().await;
     }
 
     #[tokio::test]
     async fn transcribe_returns_invalid_argument_for_unknown_profile() {
-        let service = empty_service();
+        let service = asr_service(1024, 0);
         let request = Request::new(TranscribeRequest {
             profile_name: "missing-profile".to_string(),
         });
@@ -196,7 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn transcribe_repeated_unknown_profile_calls_are_handled() {
-        let service = empty_service();
+        let service = asr_service(1024, 0);
 
         let first = service
             .transcribe(Request::new(TranscribeRequest {
@@ -218,5 +456,162 @@ mod tests {
         };
         assert_eq!(second.code(), Code::InvalidArgument);
         assert!(!service.state.lock().expect("state poisoned").is_some());
+    }
+
+    #[tokio::test]
+    async fn bad_asr() {
+        let capture_count = 1024;
+        let asr_count_before_bad = capture_count - 1;
+        let service = asr_service(capture_count, asr_count_before_bad);
+
+        let make_request_to_bad_asr = async || {
+            let response = service
+                .transcribe(Request::new(TranscribeRequest {
+                    profile_name: "bad-asr".to_string(),
+                }))
+                .await
+                .expect("transcribe should return a stream");
+            let mut stream = response.into_inner();
+
+            let mut success_count = 0;
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(result) => {
+                        success_count += 1;
+                    }
+                    Err(err) => {
+                        assert_eq!(err.code(), Code::Internal);
+                        assert!(err.message().contains("bad asr client boom!"));
+                        assert!(!service.state.lock().expect("state poisoned").is_some());
+                    }
+                }
+            }
+            assert_eq!(success_count, asr_count_before_bad);
+            assert!(stream.next().await.is_none());
+        };
+        make_request_to_bad_asr().await;
+        make_request_to_bad_asr().await;
+    }
+
+    #[tokio::test]
+    async fn immediate_bad_asr() {
+        let service = asr_service(10240, 1024);
+
+        let make_request_to_immediate_bad_asr = async || {
+            let response = service
+                .transcribe(Request::new(TranscribeRequest {
+                    profile_name: "immediate-bad-asr".to_string(),
+                }))
+                .await
+                .expect("transcribe should return a stream");
+            let mut stream = response.into_inner();
+            let first = stream.next().await.expect("stream should not be empty");
+            let err = first.expect_err("stream should fail");
+            assert_eq!(err.code(), Code::Internal);
+            assert!(err.message().contains("immediate bad asr client boom!"));
+            assert!(stream.next().await.is_none());
+        };
+        make_request_to_immediate_bad_asr().await;
+        make_request_to_immediate_bad_asr().await;
+    }
+
+    #[tokio::test]
+    async fn bad_capture() {
+        let success_capture_count = 10;
+        let service = bad_capture_service(success_capture_count);
+
+        let make_request_to_bad_asr = async || {
+            let response = service
+                .transcribe(Request::new(TranscribeRequest {
+                    profile_name: "yes-asr".to_string(),
+                }))
+                .await
+                .expect("transcribe should fail");
+
+            let mut stream = response.into_inner();
+            let mut success_count = 0;
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(result) => {
+                        success_count += 1;
+                    }
+                    Err(err) => {
+                        assert_eq!(err.code(), Code::Internal);
+                        assert!(err.message().contains("bad capture boom!"));
+                    }
+                }
+            }
+            assert_eq!(success_count, success_capture_count);
+            assert!(stream.next().await.is_none());
+        };
+        make_request_to_bad_asr().await;
+        make_request_to_bad_asr().await;
+    }
+
+    #[tokio::test]
+    async fn immediate_bad_capture() {
+        let service = immediate_bad_capture_service();
+
+        let make_request_to_immediate_bad_asr = async || {
+            let response = service
+                .transcribe(Request::new(TranscribeRequest {
+                    profile_name: "yes-asr".to_string(),
+                }))
+                .await
+                .expect("transcribe should fail");
+
+            let mut stream = response.into_inner();
+            let first = stream
+                .next()
+                .await
+                .expect("stream should not be empty")
+                .expect_err("stream should fail");
+            assert!(stream.next().await.is_none());
+        };
+        make_request_to_immediate_bad_asr().await;
+        make_request_to_immediate_bad_asr().await;
+    }
+
+    #[tokio::test]
+    async fn busy() {
+        let service = asr_service(10240, 0 /* does not matter */);
+
+        let make_request_to_busy_asr = async || {
+            service
+                .transcribe(Request::new(TranscribeRequest {
+                    profile_name: "yes-asr".to_string(),
+                }))
+                .await
+        };
+
+        let mut first_stream = make_request_to_busy_asr()
+            .await
+            .expect("transcribe should succeed")
+            .into_inner();
+
+        let second_err = make_request_to_busy_asr()
+            .await
+            .expect_err("second call must fail");
+        assert_eq!(second_err.code(), Code::AlreadyExists);
+        assert_eq!(second_err.message(), "request exists");
+
+        let stop_response = service
+            .stop(Request::new(StopRequest {}))
+            .await
+            .expect("stop should succeed")
+            .into_inner();
+        assert!(stop_response.stopped);
+
+        while let Some(response) = first_stream.next().await {
+            assert!(response.is_ok());
+        }
+
+        let restarted = make_request_to_busy_asr()
+            .await
+            .expect("transcribe should succeed")
+            .into_inner()
+            .next()
+            .await
+            .expect("transcribe should succeed again after stop");
     }
 }
