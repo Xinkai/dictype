@@ -83,7 +83,7 @@ where
                                     stage = Stage::SessionCreated;
                                 },
                                 types::ServerEvent::SessionUpdated(event) => {
-                                    info!("SessionUpdatedsave: {:?}", event);
+                                    info!("SessionUpdated: {:?}", event);
                                 },
                                 types::ServerEvent::SessionFinished(response) => {
                                     info!("SessionFinished: {response:?}");
