@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -22,6 +23,12 @@ impl SessionStream {
             inner: Box::pin(stream),
             cancellation,
         }
+    }
+}
+
+impl Debug for SessionStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionStream").finish()
     }
 }
 
