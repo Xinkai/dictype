@@ -573,6 +573,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn state_reset_after_client_crash() {
+        use tokio::time::{Duration, sleep, timeout};
+
+        let service = asr_service(10240, 0);
+
+        let mut first_stream = service
+            .transcribe(Request::new(TranscribeRequest {
+                profile_name: "yes-asr".to_string(),
+            }))
+            .await
+            .expect("transcribe should succeed")
+            .into_inner();
+
+        let first = first_stream
+            .next()
+            .await
+            .expect("stream should not be empty");
+
+        assert!(service.state.lock().expect("state poisoned").is_some());
+        drop(first_stream);
+
+        timeout(Duration::from_secs(1), async {
+            while service.state.lock().expect("state poisoned").is_some() {
+                sleep(Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("service should clean up a crashed client session");
+
+        let restarted = service
+            .transcribe(Request::new(TranscribeRequest {
+                profile_name: "yes-asr".to_string(),
+            }))
+            .await
+            .expect("transcribe should succeed again after client disconnect")
+            .into_inner()
+            .next()
+            .await
+            .expect("restarted stream should yield a response")
+            .expect("restarted stream should not fail");
+        assert_eq!(restarted.text, "yes");
+    }
+
+    #[tokio::test]
     async fn busy() {
         let service = asr_service(10240, 0 /* does not matter */);
 
