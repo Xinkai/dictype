@@ -206,39 +206,42 @@ void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
         }
     }
 
-    const auto syncState =
-        [](const DictypeFcitx* that) {
-            const auto inputContextOpt = that->state_.inputContext();
-            if (!inputContextOpt.has_value()) {
-                DICTYPE_WARN() << "input context is gone.";
-                if (that->running_.load(std::memory_order_acquire)) {
-                    that->stop_();
-                }
-                return;
+    const auto syncState = [](const DictypeFcitx* that) {
+        const auto inputContextOpt = that->state_.inputContext();
+        if (!inputContextOpt.has_value()) {
+            DICTYPE_WARN() << "input context is gone.";
+            if (that->running_.load(std::memory_order_acquire)) {
+                that->stop_();
             }
-            const auto lastFocusedInputContext =
-                that->instance()->lastFocusedInputContext();
-            auto* inputContext = *inputContextOpt;
-            if (lastFocusedInputContext != inputContext) {
-                // WORKAROUND: I suspect with some backends, InputContext
-                // commitString() always commits to the currently focused text
-                // widget, not the text widget associated with InputContext.
+            return;
+        }
+        const auto lastFocusedInputContext =
+            that->instance()->lastFocusedInputContext();
+        auto* inputContext = *inputContextOpt;
+        if (lastFocusedInputContext != inputContext) {
+            // WORKAROUND: I suspect with some backends, InputContext
+            // commitString() always commits to the currently focused text
+            // widget, not the text widget associated with InputContext.
+            if (lastFocusedInputContext == nullptr) {
+                DICTYPE_INFO() << "No focused InputContext. Delaying commit...";
+            } else {
                 const std::string uuid = toHex(lastFocusedInputContext->uuid());
                 DICTYPE_INFO()
                     << "last focused input uuid: " << uuid
-                    << ". Different InputContexts detected. Delaying commit...";
-                // TODO: watch for the re-focus, and run syncState() again.
-                return;
+                    << ". Different InputContexts detected. Delaying "
+                       "commit...";
             }
-            if (const auto committable = that->state_.takeCommittableText();
-                committable.has_value()) {
-                const std::string uuid = toHex(inputContext->uuid());
-                DICTYPE_INFO()
-                    << uuid << " committing: " << committable.value();
-                inputContext->commitString(committable.value());
-            }
-            that->updateUI_();
-        };
+            // TODO: watch for the re-focus, and run syncState() again.
+            return;
+        }
+        if (const auto committable = that->state_.takeCommittableText();
+            committable.has_value()) {
+            const std::string uuid = toHex(inputContext->uuid());
+            DICTYPE_INFO() << uuid << " committing: " << committable.value();
+            inputContext->commitString(committable.value());
+        }
+        that->updateUI_();
+    };
 
     // Start a non-blocking gRPC streaming call to dictyped.
     try {
