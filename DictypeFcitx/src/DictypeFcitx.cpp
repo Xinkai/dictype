@@ -300,7 +300,7 @@ void DictypeFcitx::trigger_(const fcitx::KeyEvent& keyEvent,
                     that2->updateUI_();
 
                     that2->closeUI_();
-                    that2->state_.clear();
+                    that2->state_.end();
 
                     that2->running_.store(false, std::memory_order_release);
                 });

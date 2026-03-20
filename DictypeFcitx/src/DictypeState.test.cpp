@@ -3,6 +3,8 @@
 
 #include <gtest/gtest.h>
 
+#include <fcitx/inputcontextmanager.h>
+
 #include "DictypeState.h"
 #include "dictype.grpc.pb.h"
 
@@ -27,10 +29,12 @@ TEST(DictypeStateTest, DefaultStateIsClosed) {
 
 TEST(DictypeStateTest, NewSessionClearsStateAndData) {
     DictypeState state;
+    const fcitx::InputContextManager icm{};
+    state.newSession(icm.dummyInputContext());
 
     state.setText(MakeResponse(1, "hello ", true));
 
-    state.clear();
+    state.end();
 
     EXPECT_EQ(state.getStage(), DictypeStage::Closed);
     EXPECT_EQ(state.getErrorMsg(), "");
@@ -40,14 +44,19 @@ TEST(DictypeStateTest, NewSessionClearsStateAndData) {
 
 TEST(DictypeStateTest, NewSessionRequiresPreviousClear) {
     DictypeState state;
-    EXPECT_TRUE(state.newSession(nullptr));
+    const fcitx::InputContextManager icm{};
+
+    EXPECT_TRUE(state.newSession(icm.dummyInputContext()));
     EXPECT_FALSE(state.newSession(nullptr));
-    state.clear();
-    EXPECT_TRUE(state.newSession(nullptr));
+    state.end();
+    EXPECT_TRUE(state.newSession(icm.dummyInputContext()));
 }
 
 TEST(DictypeStateTest, StopTransitionsOnlyFromConnectingOrTranscribing) {
     DictypeState state;
+    const fcitx::InputContextManager icm{};
+    state.newSession(icm.dummyInputContext());
+
     state.stop();
     EXPECT_EQ(state.getStage(), DictypeStage::Closed);
 
@@ -62,6 +71,9 @@ TEST(DictypeStateTest, StopTransitionsOnlyFromConnectingOrTranscribing) {
 
 TEST(DictypeStateTest, SetWordIgnoredUnlessConnectingOrTranscribing) {
     DictypeState state;
+    const fcitx::InputContextManager icm{};
+    state.newSession(icm.dummyInputContext());
+
     state.setText(MakeResponse(1, "hello "));
     EXPECT_EQ(state.getStage(), DictypeStage::Closed);
     EXPECT_EQ(state.getUncommittedText(), "");
@@ -71,6 +83,9 @@ TEST(DictypeStateTest, SetWordIgnoredUnlessConnectingOrTranscribing) {
 TEST(DictypeStateTest,
      SetWordTransitionsToTranscribingAndTracksCommitBoundaries) {
     DictypeState state;
+    const fcitx::InputContextManager icm{};
+    state.newSession(icm.dummyInputContext());
+
     state.setConnecting();
     state.setText(MakeResponse(0, "hello ", false));
     EXPECT_EQ(state.getStage(), DictypeStage::Transcribing);
@@ -92,6 +107,9 @@ TEST(DictypeStateTest,
 
 TEST(DictypeStateTest, SetErrorStoresFirstErrorAndLocksStage) {
     DictypeState state;
+    const fcitx::InputContextManager icm{};
+    state.newSession(icm.dummyInputContext());
+
     state.setError("boom");
     EXPECT_EQ(state.getStage(), DictypeStage::Errored);
     EXPECT_EQ(state.getErrorMsg(), "boom");
@@ -103,15 +121,18 @@ TEST(DictypeStateTest, SetErrorStoresFirstErrorAndLocksStage) {
 
 TEST(DictypeStateTest, RetainErrorMessageUntilNewSession) {
     DictypeState state;
+    const fcitx::InputContextManager icm{};
+    state.newSession(icm.dummyInputContext());
+
     state.setError("boom");
     EXPECT_EQ(state.getStage(), DictypeStage::Errored);
     EXPECT_EQ(state.getErrorMsg(), "boom");
 
-    state.clear();
+    state.end();
     EXPECT_EQ(state.getStage(), DictypeStage::Errored);
     EXPECT_EQ(state.getErrorMsg(), "boom");
 
-    state.newSession(nullptr);
+    state.newSession(icm.dummyInputContext());
     EXPECT_EQ(state.getStage(), DictypeStage::Closed);
     EXPECT_EQ(state.getErrorMsg(), "");
 }
