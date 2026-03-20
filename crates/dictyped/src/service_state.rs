@@ -17,8 +17,8 @@ impl ServiceState {
         self.cancellation_token.is_some()
     }
 
-    pub(crate) fn reset(&mut self) -> bool {
-        if let Some(cancellation_token) = self.cancellation_token.take() {
+    pub(crate) fn stop(&self) -> bool {
+        if let Some(cancellation_token) = &self.cancellation_token {
             cancellation_token.cancel();
             info!("stop: stopped session");
             true
@@ -26,6 +26,10 @@ impl ServiceState {
             warn!("stop: no session running");
             false
         }
+    }
+
+    pub(crate) fn clear(&mut self) -> bool {
+        self.cancellation_token.take().is_some()
     }
 
     pub(crate) fn replace(&mut self, cancellation_token: CancellationToken) -> Result<(), Status> {
