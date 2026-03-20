@@ -33,6 +33,7 @@ DictypeFcitx::DictypeFcitx(fcitx::AddonManager* addonManager)
     : eventLoop_(addonManager->eventLoop()),
       dispatcher_(addonManager->instance()->eventDispatcher()),
       instance_(addonManager->instance()) {
+    reloadConfig();
     DICTYPE_INFO() << "created";
 
     eventHandlers_.emplace_back(instance_->watchEvent(
