@@ -29,7 +29,7 @@ TEST(DictypeStateTest, DefaultStateIsClosed) {
 
 TEST(DictypeStateTest, NewSessionClearsStateAndData) {
     DictypeState state;
-    const fcitx::InputContextManager icm {};
+    const fcitx::InputContextManager icm{};
     state.newSession(icm.dummyInputContext());
 
     state.setText(MakeResponse(1, "hello ", true));
@@ -44,7 +44,7 @@ TEST(DictypeStateTest, NewSessionClearsStateAndData) {
 
 TEST(DictypeStateTest, NewSessionRequiresPreviousClear) {
     DictypeState state;
-    const fcitx::InputContextManager icm {};
+    const fcitx::InputContextManager icm{};
 
     EXPECT_TRUE(state.newSession(icm.dummyInputContext()));
     EXPECT_FALSE(state.newSession(nullptr));
@@ -54,7 +54,7 @@ TEST(DictypeStateTest, NewSessionRequiresPreviousClear) {
 
 TEST(DictypeStateTest, StopTransitionsOnlyFromConnectingOrTranscribing) {
     DictypeState state;
-    const fcitx::InputContextManager icm {};
+    const fcitx::InputContextManager icm{};
     state.newSession(icm.dummyInputContext());
 
     state.stop();
@@ -71,7 +71,7 @@ TEST(DictypeStateTest, StopTransitionsOnlyFromConnectingOrTranscribing) {
 
 TEST(DictypeStateTest, SetWordIgnoredUnlessConnectingOrTranscribing) {
     DictypeState state;
-    const fcitx::InputContextManager icm {};
+    const fcitx::InputContextManager icm{};
     state.newSession(icm.dummyInputContext());
 
     state.setText(MakeResponse(1, "hello "));
@@ -83,7 +83,7 @@ TEST(DictypeStateTest, SetWordIgnoredUnlessConnectingOrTranscribing) {
 TEST(DictypeStateTest,
      SetWordTransitionsToTranscribingAndTracksCommitBoundaries) {
     DictypeState state;
-    const fcitx::InputContextManager icm {};
+    const fcitx::InputContextManager icm{};
     state.newSession(icm.dummyInputContext());
 
     state.setConnecting();
@@ -107,7 +107,7 @@ TEST(DictypeStateTest,
 
 TEST(DictypeStateTest, SetErrorStoresFirstErrorAndLocksStage) {
     DictypeState state;
-    const fcitx::InputContextManager icm {};
+    const fcitx::InputContextManager icm{};
     state.newSession(icm.dummyInputContext());
 
     state.setError("boom");
@@ -121,7 +121,7 @@ TEST(DictypeStateTest, SetErrorStoresFirstErrorAndLocksStage) {
 
 TEST(DictypeStateTest, RetainErrorMessageUntilNewSession) {
     DictypeState state;
-    const fcitx::InputContextManager icm {};
+    const fcitx::InputContextManager icm{};
     state.newSession(icm.dummyInputContext());
 
     state.setError("boom");
