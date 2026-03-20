@@ -25,7 +25,7 @@ class DictypeState final : public fcitx::InputContextProperty {
   public:
     explicit DictypeState();
 
-    void clear();
+    void end();
     bool newSession(fcitx::InputContext* inputContext);
 
     void stop();
@@ -52,6 +52,12 @@ class DictypeState final : public fcitx::InputContextProperty {
     std::map<uint32_t, std::string> texts_;
     std::string errorMsg_;
     fcitx::TrackableObjectReference<fcitx::InputContext> inputContext_;
-    bool cleared_ = true;
+
+    /**
+     * A flag tied to the lifetime of a session.
+     *
+     * Only live sessions can accept state mutations.
+     */
+    bool ended_ = true;
     DictypeStage stage_{DictypeStage::Closed};
 };

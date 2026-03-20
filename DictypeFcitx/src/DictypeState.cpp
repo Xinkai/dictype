@@ -10,31 +10,33 @@
 
 DictypeState::DictypeState() = default;
 
-void DictypeState::clear() {
+void DictypeState::end() {
     latestCommittableBeginTime_ = -1;
     if (!texts_.empty()) {
         DICTYPE_WARN() << "uncommitted texts: " << getUncommittedText();
         texts_.clear();
     }
-    cleared_ = true;
+    ended_ = true;
 }
 
 bool DictypeState::newSession(fcitx::InputContext* inputContext) {
-    if (!cleared_) {
-        DICTYPE_WARN() << "Previous session is not cleared.";
+    if (!ended_) {
+        DICTYPE_WARN() << "Previous session is not ended.";
         return false;
     }
-    if (stage_ == DictypeStage::Errored) {
-        stage_ = DictypeStage::Closed;
-        errorMsg_.clear();
-        inputContext_.unwatch();
-    }
     if (inputContext == nullptr) {
-        inputContext_.unwatch();
-    } else {
-        inputContext_ = inputContext->watch();
+        DICTYPE_WARN() << "inputContext is nullptr";
+        return false;
     }
-    cleared_ = false;
+
+    // Clear states from the last session
+    stage_ = DictypeStage::Closed;
+    errorMsg_.clear();
+    inputContext_.unwatch();
+
+    // Set up for the new session
+    inputContext_ = inputContext->watch();
+    ended_ = false;
     return true;
 }
 
@@ -56,6 +58,10 @@ void DictypeState::setConnecting() {
 }
 
 void DictypeState::setText(const Dictype::TranscribeResponse& response) {
+    if (ended_) {
+        DICTYPE_WARN() << "Previous session is not ended.";
+        return;
+    }
     if (!(stage_ == DictypeStage::Connecting ||
           stage_ == DictypeStage::Transcribing ||
           stage_ == DictypeStage::Stopping)) {
