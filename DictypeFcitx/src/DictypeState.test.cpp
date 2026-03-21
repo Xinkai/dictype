@@ -108,8 +108,8 @@ TEST(DictypeStateTest, RetainErrorMessageUntilNewSession) {
     EXPECT_EQ(state.getErrorMsg(), "boom");
 
     state.clear();
-    EXPECT_EQ(state.getStage(), DictypeStage::Errored);
-    EXPECT_EQ(state.getErrorMsg(), "boom");
+    EXPECT_EQ(state.getStage(), DictypeStage::Closed);
+    EXPECT_EQ(state.getErrorMsg(), "");
 
     state.newSession(nullptr);
     EXPECT_EQ(state.getStage(), DictypeStage::Closed);

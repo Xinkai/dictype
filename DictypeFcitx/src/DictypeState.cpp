@@ -16,6 +16,9 @@ void DictypeState::clear() {
         DICTYPE_WARN() << "uncommitted texts: " << getUncommittedText();
         texts_.clear();
     }
+    errorMsg_.clear();
+    stage_ = DictypeStage::Closed;
+    inputContext_.unwatch();
     cleared_ = true;
 }
 
